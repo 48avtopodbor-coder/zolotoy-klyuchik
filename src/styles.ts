@@ -178,4 +178,23 @@ html.vlock{overflow:hidden}
 @media (max-width:15rem){.bar .wrap{flex-wrap:wrap}}
 .logo{min-width:0}
 @media (max-width:35rem){.svc-price{white-space:normal}.svc-price .svc-note{display:inline-block;margin-left:.5rem}}
+
+/* наведение мыши и нажатие: подсветка и смена контура (на сенсорных экранах «залипания» нет) */
+.tel,.btn,.vc-btn,.cw-btn,.cw-form button,.cw-panel header button,.cw-chips button,.vfs{transition:none}
+@media (prefers-reduced-motion:no-preference){
+  .tel,.btn,.vc-btn,.cw-btn,.cw-form button,.cw-panel header button,.cw-chips button,.vfs{transition:background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+}
+@media (hover:hover){
+  .tel:hover{background:var(--gold);color:var(--gold-ink);border-color:var(--gold);box-shadow:0 0 0 .25rem rgba(226,180,79,.22)}
+  .btn:not(.gold):hover{border-color:var(--gold);color:var(--gold);background:rgba(226,180,79,.1)}
+  .btn.gold:hover{background:#f2c867;border-color:#f2c867;box-shadow:0 .375rem 1.125rem rgba(226,180,79,.3)}
+  .cw-btn:hover{background:#f2c867;transform:scale(1.05)}
+  .vc-btn:hover{border-color:var(--gold);color:var(--gold)}
+  .cw-form button:hover{background:#f2c867}
+  .cw-panel header button:hover{background:rgba(255,255,255,.1)}
+  .info a:hover,.vlink:hover,.cw-link:hover{text-decoration-thickness:.125rem;color:#f2c867}
+  .svc-more summary:hover{text-decoration:underline;text-underline-offset:.25rem}
+  .logo:hover b{color:#f2c867}
+}
+.tel:active,.btn:active,.cw-btn:active{transform:translateY(1px) scale(.98)}
 `;

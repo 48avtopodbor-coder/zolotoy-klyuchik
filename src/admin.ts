@@ -80,6 +80,12 @@ const ADMIN_CSS = `<style>
 .lead-item{border-top:1px solid var(--line);padding:0.875rem 0}.lead-item:first-child{border-top:0}
 .lead-item .meta{color:var(--muted);font-size:.85rem}
 .lead-item p{margin:0.375rem 0 0;overflow-wrap:anywhere}
+@media (prefers-reduced-motion:no-preference){.abtn{transition:background-color .18s ease,color .18s ease,border-color .18s ease}}
+@media (hover:hover){
+  .abtn:not(.gold):not(.danger):hover{border-color:var(--gold);color:var(--gold)}
+  .abtn.gold:hover{background:#f2c867;border-color:#f2c867}
+  .abtn.danger:hover{background:rgba(255,155,138,.12);border-color:#ff9b8a}
+}
 </style>`;
 
 const IMG_JS = `<script>
