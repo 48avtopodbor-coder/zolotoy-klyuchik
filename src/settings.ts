@@ -2,7 +2,12 @@ export interface Day { off: boolean; open: string; close: string }
 export interface Hours { days: Day[]; lunch: { on: boolean; from: string; to: string } }
 export interface Contacts { phones: string[]; whatsapp: string; telegram: string; address: string }
 export interface SpecialDay { date: string; kind: 'closed' | 'short' | 'custom'; open: string | null; close: string | null; note: string }
-export interface Settings { hours: Hours; contacts: Contacts; pw: string | null; ver: number }
+export interface Site {
+  hero: { key: string | null; caption: string };
+  steps: { t: string; d: string }[];
+  ba: { before: string | null; after: string | null; caption: string; ar?: number };
+}
+export interface Settings { hours: Hours; contacts: Contacts; site: Site; pw: string | null; ver: number }
 
 export const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const DAY_LONG = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -10,6 +15,15 @@ export const DAY_LONG = ['Понедельник', 'Вторник', 'Среда
 export const DEFAULT_HOURS: Hours = {
   days: DAY_SHORT.map((_, i) => ({ off: i >= 5, open: '09:00', close: '17:00' })),
   lunch: { on: false, from: '13:00', to: '14:00' },
+};
+export const DEFAULT_SITE: Site = {
+  hero: { key: null, caption: 'Наша мастерская' },
+  steps: [
+    { t: 'Принесите ключ', d: 'Приходите с ключом-образцом, домофонной таблеткой или телефоном.' },
+    { t: 'Подберём заготовку', d: 'Подберём подходящую заготовку или плёнку под вашу модель.' },
+    { t: 'Сделаем, пока ждёте', d: 'Копию делаем при вас, плёнку клеим на ваших глазах.' },
+  ],
+  ba: { before: null, after: null, caption: 'Защитная плёнка: до и после' },
 };
 export const DEFAULT_CONTACTS: Contacts = {
   phones: ['8 900 596-45-77'],
@@ -27,6 +41,7 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
   return {
     hours: parse('hours', DEFAULT_HOURS),
     contacts: parse('contacts', DEFAULT_CONTACTS),
+    site: parse('site', DEFAULT_SITE),
     pw: m.get('admin_pw') ?? null,
     ver: Number(m.get('session_ver') ?? 0),
   };

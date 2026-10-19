@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, makeSession, passwordOk, sessionOk, verifyPassword, SESSION_MAX_AGE } from './auth';
-import { DEFAULT_CONTACTS, TIME_RE, loadSettings, loadSpecial, saveSetting, type Contacts, type Hours, type Settings } from './settings';
+import { DEFAULT_CONTACTS, DEFAULT_SITE, TIME_RE, loadSettings, loadSpecial, saveSetting, type Contacts, type Hours, type Settings, type Site } from './settings';
 import { HOLIDAYS_RF } from './holidays';
 import { homePage, SERVICE_ICONS, type Product, type Service, type Video } from './views';
 import * as A from './admin';
@@ -104,7 +104,7 @@ const files = (form: FormData, name: string): File[] =>
 
 app.get('/', async (c) => {
   const [products, videos, st, services, special] = await Promise.all([loadProducts(c.env.DB), loadVideos(c.env.DB), loadSettings(c.env.DB), loadServices(c.env.DB), loadSpecial(c.env.DB)]);
-  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, services, special, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
+  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, site: st.site, services, special, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
 });
 
 app.get('/img/:key', async (c) => {
@@ -126,6 +126,11 @@ app.get('/img/:key', async (c) => {
 });
 
 app.get('/robots.txt', (c) => c.text(`User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${new URL(c.req.url).origin}/sitemap.xml\n`));
+// значок сайта: золотой ключ на тёмной плитке (один и тот же файл для /favicon.svg и /favicon.ico)
+const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0f2233"/><rect x="2" y="2" width="60" height="60" rx="10" fill="none" stroke="#2b5276" stroke-width="2"/><g transform="rotate(-45 32 32)" fill="none" stroke="#e2b44f" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="32" r="9.5"/><circle cx="14" cy="32" r="2.4" fill="#e2b44f" stroke="none"/><path d="M23.5 32H56M46 32v9.5M54 32v6.5"/></g></svg>';
+const favicon = () => new Response(FAVICON, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
+app.get('/favicon.svg', favicon);
+app.get('/favicon.ico', favicon);
 app.get('/sitemap.xml', (c) => {
   const today = new Date().toISOString().slice(0, 10);
   return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${new URL(c.req.url).origin}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`,
@@ -481,6 +486,53 @@ app.post('/admin/services/:id/move', async (c) => {
 app.post('/admin/services/:id/delete', async (c) => {
   await c.env.DB.prepare('DELETE FROM services WHERE id=?').bind(Number(c.req.param('id'))).run();
   return c.redirect('/admin/services?deleted=1');
+});
+
+/* ---------- главная страница: фото, шаги, до и после ---------- */
+
+app.get('/admin/site', (c) => c.html(A.sitePage(c.get('st').site, A.flashText(q(c)))));
+
+app.post('/admin/site', async (c) => {
+  const f = await c.req.formData();
+  const cur = c.get('st').site;
+  const next: Site = JSON.parse(JSON.stringify(cur));
+  const db = c.env.DB;
+  const put = async (name: string): Promise<string | null | 'bad'> => {
+    const file = files(f, name)[0];
+    if (!file) return null;
+    return storeImage(db, file);
+  };
+
+  const hero = await put('hero_photo');
+  if (hero === 'bad') return c.text('Фото должно быть JPG, PNG или WebP до 1 МБ', 400);
+  if (hero || f.get('hero_remove')) { if (cur.hero.key) await dropImages(c, [cur.hero.key]); next.hero.key = hero; }
+  next.hero.caption = String(f.get('hero_caption') ?? '').trim().slice(0, 100);
+
+  next.steps = DEFAULT_SITE.steps.map((d, i) => ({
+    t: String(f.get(`step${i}_t`) ?? '').trim().slice(0, 80) || d.t,
+    d: String(f.get(`step${i}_d`) ?? '').trim().slice(0, 220) || d.d,
+  }));
+
+  const before = await put('ba_before'), after = await put('ba_after');
+  if (before === 'bad' || after === 'bad') return c.text('Фото должны быть JPG, PNG или WebP до 1 МБ', 400);
+  // пропорции кадра берём из размеров снимка, которые админка присылает вместе с файлом
+  const aspect = (name: string): number | undefined => {
+    const m = /^(\d{2,5})x(\d{2,5})$/.exec(String(f.get(name) ?? ''));
+    return m ? Math.min(2.5, Math.max(0.4, Math.round((+m[1] / +m[2]) * 1000) / 1000)) : undefined;
+  };
+  if (f.get('ba_remove')) {
+    await dropImages(c, [cur.ba.before, cur.ba.after].filter((k): k is string => !!k));
+    next.ba.before = null; next.ba.after = null; delete next.ba.ar;
+  } else {
+    if (before) { if (cur.ba.before) await dropImages(c, [cur.ba.before]); next.ba.before = before; }
+    if (after) { if (cur.ba.after) await dropImages(c, [cur.ba.after]); next.ba.after = after; }
+    const ar = aspect(after ? 'ba_after_wh' : 'ba_before_wh');
+    if ((after || before) && ar) next.ba.ar = ar;
+  }
+  next.ba.caption = String(f.get('ba_caption') ?? '').trim().slice(0, 100);
+
+  await saveSetting(db, 'site', next);
+  return c.redirect('/admin/site?saved=1');
 });
 
 /* ---------- видео ---------- */

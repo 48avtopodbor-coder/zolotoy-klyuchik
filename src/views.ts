@@ -1,5 +1,5 @@
 import { CSS } from './styles';
-import { type Contacts, type Hours, type SpecialDay, addDaysStr, hoursRows, mskToday, phoneTel, specialLine, waNumber } from './settings';
+import { type Contacts, type Hours, type Site, type SpecialDay, addDaysStr, hoursRows, mskToday, phoneTel, specialLine, waNumber } from './settings';
 
 export interface Product {
   id: number;
@@ -28,6 +28,7 @@ export function shell(title: string, body: string, opts: { noindex?: boolean; de
 ${opts.desc ? `<meta name="description" content="${esc(opts.desc)}">` : ''}
 ${opts.noindex ? '<meta name="robots" content="noindex,nofollow">' : ''}
 <meta name="theme-color" content="#0a1824">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 ${opts.head ?? ''}
 <style>${CSS}</style>
 </head><body>${body}</body></html>`;
@@ -150,7 +151,7 @@ function productCard(p: Product): string {
   const price = p.show_price && p.price != null
     ? `<div class="pr${p.is_sale ? ' sale' : ''}">${p.is_sale && p.old_price != null && p.old_price > p.price ? `<s>${rub(p.old_price)}</s> ` : ''}${rub(p.price)}</div>`
     : `<div class="pr ask">Цену уточняйте по телефону</div>`;
-  return `<article class="good${p.in_stock ? '' : ' is-out'}"><div class="gal-wrap">${photos}${badges}</div><div class="t"><h3>${esc(p.title)}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}${price}</div></article>`;
+  return `<article class="good${p.in_stock ? '' : ' is-out'}"><div class="gal-wrap">${photos}${badges}</div><div class="t"><h3>${esc(p.title)}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}${price}<button class="ask" type="button" data-ask="${esc(p.title)}" data-stock="${p.in_stock ? 1 : 0}" aria-label="Спросить про товар: ${esc(p.title)}"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Спросить<span class="ask-more"> про товар</span></span></button></div></article>`;
 }
 
 function videoCard(v: Video, i: number): string {
@@ -158,8 +159,8 @@ function videoCard(v: Video, i: number): string {
   return `<div class="vcard"><div class="vbox" data-oid="${esc(v.oid)}" data-vid="${esc(v.vid)}"><button class="vplay" type="button" aria-label="Смотреть видео ${i + 1}">${cover}<i></i></button></div><a class="vlink" href="${esc(v.url)}" target="_blank" rel="noopener">Открыть во ВКонтакте</a></div>`;
 }
 
-export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string; special: SpecialDay[] }): string {
-  const { products, videos, hours, contacts, services, origin } = d;
+export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string; special: SpecialDay[]; site: Site }): string {
+  const { products, videos, hours, contacts, services, origin, site } = d;
   const today = mskToday();
   const upcoming = d.special.filter((x) => x.date >= today && x.date <= addDaysStr(today, 120));
   const soon = upcoming.filter((x) => x.date <= addDaysStr(today, 7)).map((x) => specialLine(x, hours)).filter((x): x is string => !!x);
@@ -172,9 +173,29 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   const goods = products.length
     ? `<div class="goods">${products.map(productCard).join('')}</div>`
     : `<p class="empty">Скоро здесь появятся товары. Наличие подскажем по телефону.</p>`;
+
+  const heroPhoto = site.hero.key
+    ? `<figure class="hero-photo"><img src="/img/${esc(site.hero.key)}" alt="${esc(site.hero.caption || 'Мастерская')}" width="1400" height="788" decoding="async" fetchpriority="high">${site.hero.caption ? `<figcaption>${esc(site.hero.caption)}</figcaption>` : ''}</figure>`
+    : '';
+  const baAr = site.ba.ar && site.ba.ar >= 0.4 && site.ba.ar <= 2.5 ? Number(site.ba.ar.toFixed(3)) : 1.333;
+  const ba = site.ba.before && site.ba.after
+    ? `<figure class="ba-wrap"><div class="ba" style="--pos:50%">
+      <img class="ba-after" src="/img/${esc(site.ba.after)}" alt="Плёнка на телефоне: после" loading="lazy" decoding="async">
+      <img class="ba-before" src="/img/${esc(site.ba.before)}" alt="Телефон без плёнки: до" loading="lazy" decoding="async">
+      <span class="ba-tag l">До</span><span class="ba-tag r">После</span><i class="ba-line" aria-hidden="true"></i>
+      <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Сравнение: до и после">
+    </div>${site.ba.caption ? `<figcaption>${esc(site.ba.caption)}</figcaption>` : ''}</figure>`
+    : '';
+  const stepsHtml = `<section id="steps" class="reveal"><div class="wrap">
+    <div class="lbl">Порядок работы</div><h2>Как мы работаем</h2>
+    <div class="how${ba ? ' has-ba' : ''}" style="--ar:${baAr}">
+      <ol class="steps">${site.steps.map((st, i) => `<li><span class="n" aria-hidden="true">${i + 1}</span><div><h3>${esc(st.t)}</h3><p>${esc(st.d)}</p></div></li>`).join('')}</ol>
+      ${ba}
+    </div>
+  </div></section>`;
   const vids = videos.length
-    ? `<section id="video" style="padding-top:0"><div class="wrap">
-    <div class="lbl">Видео</div><h2>Как мы работаем</h2>
+    ? `<section id="video" class="reveal" style="padding-top:0"><div class="wrap">
+    <div class="lbl">Видео</div><h2>Смотрите, как мы работаем</h2>
     <div class="vc" id="vc">
       <button class="vc-btn prev" type="button" aria-label="Назад">‹</button>
       <div class="vc-track" id="vc-track">${videos.map(videoCard).join('')}</div>
@@ -190,11 +211,17 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   ${ICON_SYMBOLS}
   <symbol id="i-wa" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/><path d="M8.9 8.6c0 3.3 2.7 6 6 6" stroke-width="2.6"/></symbol>
   <symbol id="i-tg" viewBox="0 0 24 24"><path d="M21.5 3 2.8 10.3l6 2.3 2.3 6.9 3.3-4 5 3.7z"/><path d="M8.8 12.6 21.5 3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
   <symbol id="i-ph" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
 </svg>
 <div class="bar"><div class="wrap">
   <a class="logo" href="#top">Мастерская <b>Золотой ключик</b></a>
-  ${main ? `<a class="tel" href="tel:${phoneTel(main)}">${esc(main)}</a>` : ''}
+  <div class="bar-actions">
+    <button class="theme-btn" id="theme-btn" type="button" aria-label="Включить светлую тему"><svg class="ico i-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ico i-moon" aria-hidden="true"><use href="#i-moon"/></svg></button>
+    ${main ? `<a class="tel" href="tel:${phoneTel(main)}" aria-label="Позвонить ${esc(main)}"><svg class="ico tel-ico" aria-hidden="true"><use href="#i-ph"/></svg><span class="tel-num">${esc(main)}</span></a>` : ''}
+  </div>
 </div></div>
 ${notice}
 <main id="top">
@@ -210,22 +237,23 @@ ${notice}
       </div>
       <div class="state" id="state">${hoursRows(hours).map((r) => `${r.label} ${r.value}`).join(', ')}</div>
     </div>
-    ${KEY_DRAWING}
+    <div class="hero-art">${heroPhoto}${KEY_DRAWING}</div>
   </div></div>
 
-  <section><div class="wrap">
+  <section class="reveal"><div class="wrap">
     <div class="lbl">Услуги</div><h2>Что мы делаем</h2>
     <div class="rows">${services.map(serviceRow).join('')}</div>
   </div></section>
 
-  <section id="goods" style="padding-top:0"><div class="wrap">
+  ${stepsHtml}
+  <section id="goods" class="reveal" style="padding-top:0"><div class="wrap">
     <div class="lbl">Товары</div><h2>В наличии</h2>
     ${goods}
   </div></section>
 
   ${vids}
 
-  <section id="lead" style="padding-top:0"><div class="wrap">
+  <section id="lead" class="reveal" style="padding-top:0"><div class="wrap">
     <div class="lbl">Заявка</div><h2>Оставьте номер, мы перезвоним</h2>
     <form id="lead-form" class="lead" novalidate>
       <label for="lf-name">Ваше имя</label>
@@ -366,6 +394,15 @@ ${notice}
   }
   function close(){openP=false;panel.hidden=true;btn.setAttribute('aria-expanded','false');btn.classList.remove('cw-hide');schedule();btn.focus()}
   btn.addEventListener('click',open);
+  /* «Спросить про товар»: открываем чат и подставляем вопрос, отправляет сам посетитель */
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('.ask');if(!a)return;
+    var t=a.dataset.ask,q=a.dataset.stock==='1'?'Здравствуйте! Интересует товар «'+t+'». Есть в наличии?':'Здравствуйте! Когда будет в наличии «'+t+'»?';
+    open();removeChips();
+    text.value=text.value.trim()?text.value.trim()+'\\n'+q:q;
+    text.style.height='auto';text.style.height=Math.min(text.scrollHeight,110)+'px';
+    text.focus();text.setSelectionRange(text.value.length,text.value.length);
+  });
   $('cw-close').addEventListener('click',close);
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openP)close()});
   text.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
@@ -444,6 +481,34 @@ ${notice}
     if(!text)text='Сейчас закрыто';
   }
   var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;
+
+  /* переключатель светлой и тёмной темы */
+  var tb=document.getElementById('theme-btn');
+  function themeNow(){return document.documentElement.getAttribute('data-theme')==='light'?'light':'dark'}
+  function themeLabel(){tb.setAttribute('aria-label',themeNow()==='light'?'Включить тёмную тему':'Включить светлую тему')}
+  themeLabel();
+  tb.addEventListener('click',function(){
+    var n=themeNow()==='light'?'dark':'light';
+    document.documentElement.setAttribute('data-theme',n);
+    try{localStorage.setItem('theme',n)}catch(e){}
+    themeLabel();
+  });
+
+  /* слайдер «до и после» */
+  document.querySelectorAll('.ba').forEach(function(b){
+    var r=b.querySelector('.ba-range');
+    r.addEventListener('input',function(){b.style.setProperty('--pos',r.value+'%')});
+  });
+
+  /* мягкое появление блоков при прокрутке: если что-то не поддерживается, блоки просто видны */
+  if('IntersectionObserver' in window&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    var rv=document.querySelectorAll('.reveal');
+    document.documentElement.classList.add('rv');
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(en){if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target)}});
+    },{rootMargin:'0px 0px -8% 0px',threshold:.06});
+    rv.forEach(function(el){io.observe(el)});
+  }
 
   /* счётчик фото на карточке товара */
   document.querySelectorAll('.gal').forEach(function(g){
@@ -537,7 +602,9 @@ ${notice}
   const from = services.filter((x) => x.price != null && x.mode !== 'none').map((x) => `${x.title.toLowerCase()} ${x.mode === 'from' ? 'от ' : ''}${x.price} ₽`).join(', ');
   const desc = `Дубликаты ключей и домофонных ключей, наклейка защитной плёнки на телефон, зарядки и USB-шнуры в Липецке. ${from ? `Цены: ${from}. ` : ''}${contacts.address}.`;
   const title = 'Дубликаты ключей, домофонные ключи, плёнка на телефон в Липецке | Золотой ключик';
-  const head = `<link rel="canonical" href="${esc(origin)}/">
+  const head = `<script>(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
+<meta name="color-scheme" content="dark light">
+<link rel="canonical" href="${esc(origin)}/">
 <meta property="og:type" content="website"><meta property="og:locale" content="ru_RU">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(origin)}/">
 ${jsonLd(origin, contacts, hours, services, upcoming)}`;

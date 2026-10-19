@@ -1,5 +1,5 @@
 import { esc, rub, shell, SERVICE_ICONS, type Service } from './views';
-import { DAY_LONG, mskToday, ruDate, type Contacts, type Hours, type SpecialDay } from './settings';
+import { DAY_LONG, mskToday, ruDate, type Contacts, type Hours, type Site, type SpecialDay } from './settings';
 
 export interface AdminProduct {
   id: number; title: string; description: string; price: number | null; old_price: number | null;
@@ -11,6 +11,7 @@ export interface Lead { id: number; name: string; phone: string; message: string
 const TABS: [string, string, string][] = [
   ['products', 'Товары', '/admin/products'],
   ['services', 'Услуги и цены', '/admin/services'],
+  ['site', 'Главная страница', '/admin/site'],
   ['videos', 'Видео', '/admin/videos'],
   ['hours', 'Часы работы', '/admin/hours'],
   ['contacts', 'Контакты', '/admin/contacts'],
@@ -90,13 +91,13 @@ const ADMIN_CSS = `<style>
 
 const IMG_JS = `<script>
 (function(){
-  function resize(f){return new Promise(function(res,rej){
+  function resize(f,max){return new Promise(function(res,rej){
     var img=new Image(),u=URL.createObjectURL(f);
     img.onload=function(){
-      var max=1000,s=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');
+      var s=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');
       c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);
       c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);
-      c.toBlob(function(b){b?res(b):rej(new Error('Не удалось обработать фото'))},'image/webp',0.82);
+      c.toBlob(function(b){b?res({b:b,w:c.width,h:c.height}):rej(new Error('Не удалось обработать фото'))},'image/webp',0.82);
     };
     img.onerror=function(){rej(new Error('Это не картинка'))};img.src=u;
   })}
@@ -114,7 +115,7 @@ const IMG_JS = `<script>
       var fd=new FormData(form),jobs=[];
       form.querySelectorAll('input[type=file]').forEach(function(inp){
         fd.delete(inp.name);
-        Array.prototype.forEach.call(inp.files,function(f){jobs.push(resize(f).then(function(b){fd.append(inp.name,b,'photo.webp')}))});
+        Array.prototype.forEach.call(inp.files,function(f){jobs.push(resize(f,+(form.dataset.max||1000)).then(function(r){fd.append(inp.name,r.b,'photo.webp');fd.append(inp.name+'_wh',r.w+'x'+r.h)}))});
       });
       Promise.all(jobs)
       .then(function(){return fetch(form.action,{method:'POST',body:fd,credentials:'same-origin'})})
@@ -381,4 +382,42 @@ export function servicesPage(list: Service[], flash?: string): string {
 ${list.map((s, i) => serviceForm(s, i, list.length)).join('')}
 <h2 style="font-size:1.15rem;margin:1.75rem 0 0.75rem">Новая услуга</h2>
 ${serviceForm(null, 0, 0)}`, flash);
+}
+
+/* ---------- главная страница ---------- */
+
+export function sitePage(site: Site, flash?: string): string {
+  const photo = (key: string | null, label: string) => key ? `<img class="pv" src="/img/${esc(key)}" alt="${esc(label)}">` : '<div class="hint">Фото пока нет.</div>';
+  const steps = site.steps.map((st, i) => `<div class="card" style="margin-bottom:1rem"><b>Шаг ${i + 1}</b>
+  <label for="st${i}t">Заголовок</label><input id="st${i}t" name="step${i}_t" type="text" maxlength="80" value="${esc(st.t)}">
+  <label for="st${i}d">Описание</label><textarea id="st${i}d" name="step${i}_d" maxlength="220" style="min-height:4.5rem">${esc(st.d)}</textarea></div>`).join('');
+  return layout('site', 'Главная страница', `
+<p class="sub">Фото на первом экране, блок «Как мы работаем» и сравнение «до и после» для плёнки.</p>
+<style>.pv{display:block;max-width:20rem;width:100%;border-radius:.5rem;border:1px solid var(--line);margin:.4rem 0}.ba2{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem}</style>
+<form class="f" method="post" action="/admin/site" enctype="multipart/form-data" data-img data-max="1400" data-next="/admin/site?saved=1">
+  <div class="err" hidden></div>
+  <div class="card"><b>Фото на первом экране</b>
+    <p class="hint">Живое фото мастерской или работы, лучше горизонтальное. Показывается рядом с чертежом.</p>
+    ${photo(site.hero.key, 'Фото на первом экране')}
+    <label for="hero_photo">${site.hero.key ? 'Заменить фото' : 'Загрузить фото'}</label>
+    <input id="hero_photo" name="hero_photo" type="file" accept="image/*">
+    <div data-prev="hero_photo"></div>
+    ${site.hero.key ? '<div class="chk"><input id="hero_remove" name="hero_remove" type="checkbox" value="1"><label for="hero_remove">Убрать фото</label></div>' : ''}
+    <label for="hero_caption">Подпись на фото (необязательно)</label>
+    <input id="hero_caption" name="hero_caption" type="text" maxlength="100" value="${esc(site.hero.caption)}">
+  </div>
+  <h2 style="font-size:1.15rem;margin:1.5rem 0 .6rem">Блок «Как мы работаем»</h2>
+  ${steps}
+  <div class="card"><b>Плёнка: до и после</b>
+    <p class="hint">Загрузите оба фото, и на сайте появится ползунок для сравнения. Снимайте телефон одинаково в обоих кадрах.</p>
+    <div class="ba2">
+      <div>${photo(site.ba.before, 'До')}<label for="ba_before">Фото «До»</label><input id="ba_before" name="ba_before" type="file" accept="image/*"><div data-prev="ba_before"></div></div>
+      <div>${photo(site.ba.after, 'После')}<label for="ba_after">Фото «После»</label><input id="ba_after" name="ba_after" type="file" accept="image/*"><div data-prev="ba_after"></div></div>
+    </div>
+    ${site.ba.before || site.ba.after ? '<div class="chk"><input id="ba_remove" name="ba_remove" type="checkbox" value="1"><label for="ba_remove">Убрать оба фото</label></div>' : ''}
+    <label for="ba_caption">Подпись под сравнением</label>
+    <input id="ba_caption" name="ba_caption" type="text" maxlength="100" value="${esc(site.ba.caption)}">
+  </div>
+  <p><button class="abtn gold" type="submit">Сохранить</button></p>
+</form>`, flash, IMG_JS);
 }
