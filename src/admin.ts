@@ -20,66 +20,66 @@ const TABS: [string, string, string][] = [
 ];
 
 const ADMIN_CSS = `<style>
-.admin{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:100vh}
-.side{background:#0a1824;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;align-self:start;height:100vh;display:flex;flex-direction:column;gap:4px}
-.side .brand{font-weight:700;padding:6px 10px 14px}.side .brand b{color:var(--gold)}
-.side a,.side button{display:block;width:100%;text-align:left;padding:11px 12px;border-radius:6px;text-decoration:none;color:var(--fg);background:none;border:0;font:inherit;cursor:pointer}
+.admin{display:grid;grid-template-columns:13.125rem minmax(0,1fr);min-height:100vh}
+.side{background:#0a1824;border-right:1px solid var(--line);padding:1.125rem 0.75rem;position:sticky;top:0;align-self:start;height:100vh;display:flex;flex-direction:column;gap:0.25rem}
+.side .brand{font-weight:700;padding:0.375rem 0.625rem 0.875rem}.side .brand b{color:var(--gold)}
+.side a,.side button{display:block;width:100%;text-align:left;padding:0.6875rem 0.75rem;border-radius:0.375rem;text-decoration:none;color:var(--fg);background:none;border:0;font:inherit;cursor:pointer}
 .side a:hover,.side button:hover{background:var(--panel)}
 .side a[aria-current=page]{background:var(--panel);color:var(--gold);font-weight:700}
 .side .sp{flex:1}
-.main{padding:24px max(16px,env(safe-area-inset-right,0px)) 60px 24px;max-width:820px;width:100%}
-.main h1{font-size:1.5rem;margin-bottom:6px}
-.main .sub{color:var(--muted);margin:0 0 20px}
-@media (max-width:760px){
+.main{padding:1.5rem max(1rem,env(safe-area-inset-right,0px)) 3.75rem 1.5rem;max-width:51.25rem;width:100%}
+.main h1{font-size:1.5rem;margin-bottom:0.375rem}
+.main .sub{color:var(--muted);margin:0 0 1.25rem}
+@media (max-width:47.5rem){
   .admin{grid-template-columns:1fr}
-  .side{position:sticky;top:env(safe-area-inset-top,0px);height:auto;flex-direction:row;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid var(--line);z-index:20;gap:2px}
+  .side{position:sticky;top:env(safe-area-inset-top,0px);height:auto;flex-direction:row;overflow-x:auto;padding:0.5rem;border-right:0;border-bottom:1px solid var(--line);z-index:20;gap:2px}
   .side .brand,.side .sp{display:none}
-  .side a,.side button{width:auto;white-space:nowrap;padding:10px 12px}
-  .main{padding:18px max(16px,env(safe-area-inset-left,0px)) 60px}
+  .side a,.side button{width:auto;white-space:nowrap;padding:0.625rem 0.75rem}
+  .main{padding:1.125rem max(1rem,env(safe-area-inset-left,0px)) 3.75rem}
 }
-.f label{display:block;margin:14px 0 6px;font-weight:600}
-.f input[type=text],.f input[type=password],.f input[type=number],.f input[type=url],.f input[type=time],.f textarea{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:12px;font:inherit}
-.f textarea{min-height:90px;resize:vertical}
+.f label{display:block;margin:0.875rem 0 0.375rem;font-weight:600}
+.f input[type=text],.f input[type=password],.f input[type=number],.f input[type=url],.f input[type=time],.f textarea{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:0.375rem;padding:0.75rem;font:inherit}
+.f textarea{min-height:5.625rem;resize:vertical}
 .f input:focus-visible,.f textarea:focus-visible,.f select:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
-.f .chk{display:flex;align-items:center;gap:10px;margin:12px 0}
-.f .chk input{width:22px;height:22px;accent-color:var(--gold);flex:none}
+.f .chk{display:flex;align-items:center;gap:0.625rem;margin:0.75rem 0}
+.f .chk input{width:1.375rem;height:1.375rem;accent-color:var(--gold);flex:none}
 .f .chk label{margin:0;font-weight:500}
-.f .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
-.hint{color:var(--muted);font-size:.88rem;margin-top:4px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:22px}
-.abtn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--fg);text-decoration:none;font:inherit;font-weight:600;cursor:pointer}
+.f .row2{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;align-items:end}
+.hint{color:var(--muted);font-size:.88rem;margin-top:0.25rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:0.625rem;padding:1.125rem;margin-bottom:1.375rem}
+.abtn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:0 1rem;border-radius:0.375rem;border:1px solid var(--line);background:none;color:var(--fg);text-decoration:none;font:inherit;font-weight:600;cursor:pointer}
 .abtn.gold{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
 .abtn.danger{color:#ff9b8a;border-color:#7a3a30}
-.abtn.sm{min-height:38px;padding:0 12px;font-size:.9rem}
+.abtn.sm{min-height:2.375rem;padding:0 0.75rem;font-size:.9rem}
 .abtn:disabled{opacity:.6;cursor:default}
-.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.msg{background:#12402a;border:1px solid #2d7a53;color:#c8f1da;border-radius:6px;padding:10px 14px;margin-bottom:16px}
-.err{background:#4a1d17;border:1px solid #8a3a30;color:#ffd5cc;border-radius:6px;padding:10px 14px;margin-bottom:16px}
-.item{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.acts{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center}
+.msg{background:#12402a;border:1px solid #2d7a53;color:#c8f1da;border-radius:0.375rem;padding:0.625rem 0.875rem;margin-bottom:1rem}
+.err{background:#4a1d17;border:1px solid #8a3a30;color:#ffd5cc;border-radius:0.375rem;padding:0.625rem 0.875rem;margin-bottom:1rem}
+.item{display:grid;grid-template-columns:4.5rem minmax(0,1fr) auto;gap:0.875rem;align-items:center;padding:0.75rem 0;border-top:1px solid var(--line)}
 .item:first-child{border-top:0}
-.item img,.item .nophoto{width:72px;height:54px;object-fit:cover;border-radius:6px;background:var(--bg)}
+.item img,.item .nophoto{width:4.5rem;height:3.375rem;object-fit:cover;border-radius:0.375rem;background:var(--bg)}
 .item .nophoto{display:grid;place-items:center;font-size:.7rem;color:var(--muted)}
 .item b{display:block;overflow-wrap:anywhere}.item small{color:var(--muted)}
-.tag{display:inline-block;font-size:.72rem;font-family:var(--mono);padding:2px 7px;border-radius:4px;background:var(--gold);color:var(--gold-ink);margin-left:6px;vertical-align:middle}
+.tag{display:inline-block;font-size:.72rem;font-family:var(--mono);padding:2px 0.4375rem;border-radius:0.25rem;background:var(--gold);color:var(--gold-ink);margin-left:0.375rem;vertical-align:middle}
 .tag.grey{background:#3a4650;color:#dfe6ec}
-@media (max-width:520px){.item{grid-template-columns:60px minmax(0,1fr)}.item .acts{grid-column:1/-1}}
-.photos{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0}
-.pitem{width:132px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;font-size:.85rem}
-.pitem img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:5px}
-.pitem label{margin:0!important;font-weight:500!important;display:flex;gap:6px;align-items:center}
+@media (max-width:32.5rem){.item{grid-template-columns:3.75rem minmax(0,1fr)}.item .acts{grid-column:1/-1}}
+.photos{display:flex;flex-wrap:wrap;gap:0.75rem;margin:0.5rem 0}
+.pitem{width:8.25rem;background:var(--bg);border:1px solid var(--line);border-radius:0.5rem;padding:0.5rem;display:flex;flex-direction:column;gap:0.375rem;font-size:.85rem}
+.pitem img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:0.3125rem}
+.pitem label{margin:0!important;font-weight:500!important;display:flex;gap:0.375rem;align-items:center}
 .pitem input[type=radio]{accent-color:var(--gold)}
-.dayrow{display:grid;grid-template-columns:130px auto 1fr 1fr;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.dayrow{display:grid;grid-template-columns:8.125rem auto 1fr 1fr;gap:0.625rem;align-items:center;padding:0.625rem 0;border-top:1px solid var(--line)}
 .dayrow:first-child{border-top:0}
 .dayrow .chk{margin:0}
-@media (max-width:560px){.dayrow{grid-template-columns:1fr 1fr}.dayrow>b{grid-column:1/-1}}
-.vitem{grid-template-columns:72px minmax(0,1fr) auto}
-.vextra{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+@media (max-width:35rem){.dayrow{grid-template-columns:1fr 1fr}.dayrow>b{grid-column:1/-1}}
+.vitem{grid-template-columns:4.5rem minmax(0,1fr) auto}
+.vextra{grid-column:1/-1;display:flex;gap:0.625rem;flex-wrap:wrap;align-items:center}
 .vextra form{margin:0}
-.vcover{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.vcover input[type=file]{max-width:230px;font-size:.85rem}
-.lead-item{border-top:1px solid var(--line);padding:14px 0}.lead-item:first-child{border-top:0}
+.vcover{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center}
+.vcover input[type=file]{max-width:14.375rem;font-size:.85rem}
+.lead-item{border-top:1px solid var(--line);padding:0.875rem 0}.lead-item:first-child{border-top:0}
 .lead-item .meta{color:var(--muted);font-size:.85rem}
-.lead-item p{margin:6px 0 0;overflow-wrap:anywhere}
+.lead-item p{margin:0.375rem 0 0;overflow-wrap:anywhere}
 </style>`;
 
 const IMG_JS = `<script>
@@ -99,7 +99,7 @@ const IMG_JS = `<script>
     form.querySelectorAll('input[type=file]').forEach(function(inp){
       inp.addEventListener('change',function(){
         var box=form.querySelector('[data-prev="'+inp.name+'"]');if(!box)return;box.replaceChildren();
-        Array.prototype.forEach.call(inp.files,function(f){var i=document.createElement('img');i.src=URL.createObjectURL(f);i.className='prev';i.style.cssText='width:96px;height:72px;object-fit:cover;border-radius:6px;margin:6px 6px 0 0';box.appendChild(i)});
+        Array.prototype.forEach.call(inp.files,function(f){var i=document.createElement('img');i.src=URL.createObjectURL(f);i.className='prev';i.style.cssText='width:6rem;height:4.5rem;object-fit:cover;border-radius:0.375rem;margin:0.375rem 0.375rem 0 0';box.appendChild(i)});
       });
     });
     form.querySelectorAll('[data-rm]').forEach(function(b){b.addEventListener('click',function(){b.closest('.pitem').remove()})});
@@ -132,12 +132,12 @@ export const flashText = (q: Record<string, string | undefined>): string | undef
   q.saved ? 'Сохранено' : q.deleted ? 'Удалено' : q.added ? 'Добавлено' : undefined;
 
 export function loginPage(error?: string): string {
-  return shell('Вход в админку', `${ADMIN_CSS}<div class="main f" style="margin:0 auto;padding-top:48px">
+  return shell('Вход в админку', `${ADMIN_CSS}<div class="main f" style="margin:0 auto;padding-top:3rem">
 <h1>Вход в админку</h1>${error ? `<div class="err">${esc(error)}</div>` : ''}
 <form method="post" action="/admin/login" class="card">
   <label for="pw">Пароль</label>
   <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>
-  <p><button class="abtn gold" type="submit" style="margin-top:16px">Войти</button></p>
+  <p><button class="abtn gold" type="submit" style="margin-top:1rem">Войти</button></p>
 </form></div>`, { noindex: true });
 }
 
@@ -181,7 +181,7 @@ export function productFormPage(p?: AdminProduct): string {
   <input id="images" name="images" type="file" accept="image/*" multiple>
   <div data-prev="images"></div>
   <div class="hint">Можно выбрать несколько фото сразу. Главное фото показывается первым. Фото автоматически уменьшаются, чтобы сайт открывался быстро.</div>
-  <p><button class="abtn gold" type="submit" style="margin-top:18px">Сохранить</button></p>
+  <p><button class="abtn gold" type="submit" style="margin-top:1.125rem">Сохранить</button></p>
 </form>`, undefined, IMG_JS);
 }
 
@@ -216,7 +216,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
   <input id="cover" name="cover" type="file" accept="image/*">
   <div data-prev="cover"></div>
   <div class="hint">Если свою обложку не выбрать, сайт попробует взять её из ВК сам.</div>
-  <p><button class="abtn gold" type="submit" style="margin-top:14px">Добавить видео</button></p>
+  <p><button class="abtn gold" type="submit" style="margin-top:0.875rem">Добавить видео</button></p>
 </form>`, flash, IMG_JS);
 }
 
@@ -231,10 +231,10 @@ export function hoursPage(h: Hours, flash?: string, error?: string): string {
 <p class="sub">График показывается в подвале сайта и в статусе «Сейчас открыто / закрыто».</p>
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
 <form class="card f" method="post" action="/admin/hours">${rows}
-  <div class="chk" style="margin-top:16px"><input id="lunch_on" name="lunch_on" type="checkbox" value="1"${h.lunch.on ? ' checked' : ''}><label for="lunch_on">Есть обеденный перерыв (во все рабочие дни)</label></div>
+  <div class="chk" style="margin-top:1rem"><input id="lunch_on" name="lunch_on" type="checkbox" value="1"${h.lunch.on ? ' checked' : ''}><label for="lunch_on">Есть обеденный перерыв (во все рабочие дни)</label></div>
   <div class="row2"><div><label for="lf">Обед с</label><input id="lf" name="lunch_from" type="time" value="${esc(h.lunch.from)}"></div>
   <div><label for="lt">Обед до</label><input id="lt" name="lunch_to" type="time" value="${esc(h.lunch.to)}"></div></div>
-  <p><button class="abtn gold" type="submit" style="margin-top:18px">Сохранить</button></p>
+  <p><button class="abtn gold" type="submit" style="margin-top:1.125rem">Сохранить</button></p>
 </form>`, flash);
 }
 
@@ -251,7 +251,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
   <label for="address">Адрес</label>
   <textarea id="address" name="address" required maxlength="200">${esc(c.address)}</textarea>
   <div class="hint">По адресу строятся ссылки на Яндекс Карты и 2ГИС.</div>
-  <p><button class="abtn gold" type="submit" style="margin-top:18px">Сохранить</button></p>
+  <p><button class="abtn gold" type="submit" style="margin-top:1.125rem">Сохранить</button></p>
 </form>`, flash);
 }
 
@@ -263,7 +263,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
   <label for="cur">Текущий пароль</label><input id="cur" name="current" type="password" autocomplete="current-password" required>
   <label for="new">Новый пароль</label><input id="new" name="next" type="password" autocomplete="new-password" minlength="10" required>
   <label for="rep">Новый пароль ещё раз</label><input id="rep" name="repeat" type="password" autocomplete="new-password" minlength="10" required>
-  <p><button class="abtn gold" type="submit" style="margin-top:18px">Сменить пароль</button></p>
+  <p><button class="abtn gold" type="submit" style="margin-top:1.125rem">Сменить пароль</button></p>
 </form>`, flash);
 }
 
@@ -273,7 +273,7 @@ export function leadsPage(list: Lead[], flash?: string, error?: string): string 
   <div class="meta">${fmt(l.created_at)} (МСК)${l.sent ? '' : ' · <span style="color:#ff9b8a">не ушла в Telegram</span>'}</div>
   <p><b>${esc(l.name)}</b> · <a href="tel:${esc(l.phone.replace(/[^\d+]/g, ''))}" style="color:var(--gold)">${esc(l.phone)}</a></p>
   ${l.message ? `<p>${esc(l.message)}</p>` : ''}
-  <form method="post" action="/admin/leads/${l.id}/delete" onsubmit="return confirm('Удалить заявку?')" style="margin-top:8px"><button class="abtn sm danger" type="submit">Удалить</button></form>
+  <form method="post" action="/admin/leads/${l.id}/delete" onsubmit="return confirm('Удалить заявку?')" style="margin-top:0.5rem"><button class="abtn sm danger" type="submit">Удалить</button></form>
 </div>`).join('') : '<p class="hint">Заявок пока нет.</p>';
   return layout('leads', 'Заявки', `<p class="sub">Последние 100 заявок с сайта. Новые также приходят вам в Telegram.</p>
 ${error ? `<div class="err">${esc(error)}</div>` : ''}
@@ -296,7 +296,7 @@ export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): str
 <form method="post" action="/admin/chats/${ch.id}/delete" onsubmit="return confirm('Удалить эту переписку?')"><button class="abtn sm danger" type="submit">Удалить переписку</button></form></details>`;
   }).join('') : '<p class="hint">Переписок пока нет.</p>';
   return layout('chats', 'Чаты', `<p class="sub">Переписки с посетителями через чат на сайте. Отвечать нужно в Telegram, нажав «Ответить» на сообщение. Переписки старше 30 дней удаляются сами.</p>
-<style>.chat-item{border-top:1px solid var(--line);padding:12px 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.chat-log{display:flex;flex-direction:column;gap:8px;margin:12px 0}.cm{max-width:88%;padding:8px 12px;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
+<style>.chat-item{border-top:1px solid var(--line);padding:0.75rem 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.chat-log{display:flex;flex-direction:column;gap:0.5rem;margin:0.75rem 0}.cm{max-width:88%;padding:0.5rem 0.75rem;border-radius:0.625rem;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
 <div class="card">${rows}</div>`, flash);
 }
 
@@ -321,13 +321,13 @@ function serviceForm(s: Service | null, i: number, total: number): string {
   <label for="${id}-old">Старая цена, ₽ (только для режима «Акция»)</label>
   <input id="${id}-old" name="old_price" type="number" min="0" max="10000000" inputmode="numeric" value="${s?.old_price ?? ''}">
   <div class="row2">
-    <div class="chk" style="margin:0 0 6px"><input id="${id}-sn" name="show_note" type="checkbox" value="1"${s ? (s.show_note ? ' checked' : '') : ''}><label for="${id}-sn">Подпись под ценой</label></div>
+    <div class="chk" style="margin:0 0 0.375rem"><input id="${id}-sn" name="show_note" type="checkbox" value="1"${s ? (s.show_note ? ' checked' : '') : ''}><label for="${id}-sn">Подпись под ценой</label></div>
     <div><label for="${id}-note" style="margin-top:0">Текст подписи</label><input id="${id}-note" name="note" type="text" maxlength="60" placeholder="на все модели" value="${esc(s?.note ?? 'на все модели')}"></div>
   </div>
   <label for="${id}-det">Подробный текст (раскрывается по кнопке «Подробнее», читается поисковиками)</label>
-  <textarea id="${id}-det" name="details" maxlength="6000" style="min-height:220px">${esc(s?.details ?? '')}</textarea>
+  <textarea id="${id}-det" name="details" maxlength="6000" style="min-height:13.75rem">${esc(s?.details ?? '')}</textarea>
   <div class="hint">Абзацы разделяйте пустой строкой. Строки, которые начинаются с «- », станут маркированным списком.</div>
-  <div class="acts" style="margin-top:16px">
+  <div class="acts" style="margin-top:1rem">
     <button class="abtn gold" type="submit">${s ? 'Сохранить' : 'Добавить услугу'}</button>
     ${s ? `<button class="abtn sm" type="submit" formaction="/admin/services/${s.id}/move" name="dir" value="up"${i === 0 ? ' disabled' : ''} formnovalidate aria-label="Выше">↑</button>
     <button class="abtn sm" type="submit" formaction="/admin/services/${s.id}/move" name="dir" value="down"${i === total - 1 ? ' disabled' : ''} formnovalidate aria-label="Ниже">↓</button>
@@ -339,8 +339,8 @@ function serviceForm(s: Service | null, i: number, total: number): string {
 export function servicesPage(list: Service[], flash?: string): string {
   return layout('services', 'Услуги и цены', `
 <p class="sub">Эти услуги и цены показываются на главной странице. Подробный текст помогает поиску: в нём стоит перечислить виды ключей, форматы и модели телефонов. Только то, что вы действительно делаете.</p>
-<style>.sel{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:12px;font:inherit}</style>
+<style>.sel{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:0.375rem;padding:0.75rem;font:inherit}</style>
 ${list.map((s, i) => serviceForm(s, i, list.length)).join('')}
-<h2 style="font-size:1.15rem;margin:28px 0 12px">Новая услуга</h2>
+<h2 style="font-size:1.15rem;margin:1.75rem 0 0.75rem">Новая услуга</h2>
 ${serviceForm(null, 0, 0)}`, flash);
 }

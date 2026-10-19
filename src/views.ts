@@ -457,7 +457,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   /* карусель видео: медленная автопрокрутка, останавливается при любом действии посетителя */
   function step(dir){
     var card=track.firstElementChild;if(!card)return;
-    var w=card.getBoundingClientRect().width+14,max=track.scrollWidth-track.clientWidth;
+    var gap=parseFloat(getComputedStyle(track).columnGap)||14,w=card.getBoundingClientRect().width+gap,max=track.scrollWidth-track.clientWidth;
     if(dir>0&&track.scrollLeft>=max-4)track.scrollTo({left:0,behavior:'smooth'});
     else track.scrollBy({left:dir*w,behavior:'smooth'});
   }
