@@ -178,16 +178,23 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   lf.addEventListener('submit',function(e){
     e.preventDefault();
     var s=document.getElementById('lf-status'),btn=document.getElementById('lf-btn');
-    function say(t,ok){s.textContent=t;s.hidden=false;s.className='lf-status '+(ok?'ok':'bad')}
+    function say(title,text,ok){
+      s.className='lf-status '+(ok?'ok':'bad');s.hidden=false;
+      s.innerHTML='<span class="ico" aria-hidden="true">'+(ok
+        ?'<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>'
+        :'<b>!</b>')+'</span><span><b></b><span></span></span>';
+      s.querySelector('span:last-child b').textContent=title;
+      s.querySelector('span:last-child span').textContent=text;
+    }
     var fd=new FormData(lf),data={};fd.forEach(function(v,k){data[k]=v});
     btn.disabled=true;btn.textContent='Отправляю…';
     fetch('/api/lead',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)})
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
     .then(function(x){
-      if(x.ok){say('Спасибо! Заявка отправлена, мы скоро перезвоним.',true);lf.reset()}
-      else say(x.j.error||'Не удалось отправить. Позвоните нам.',false);
+      if(x.ok){say('Заявка принята','Перезвоним вам в рабочее время.',true);lf.reset()}
+      else say('Заявка не отправлена',x.j.error||'Позвоните нам, пожалуйста.',false);
     })
-    .catch(function(){say('Нет связи. Позвоните нам.',false)})
+    .catch(function(){say('Нет связи','Проверьте интернет или позвоните нам.',false)})
     .then(function(){btn.disabled=false;btn.textContent='Отправить заявку'});
   });
 

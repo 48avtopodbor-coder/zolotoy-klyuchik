@@ -151,7 +151,7 @@ app.post('/api/lead', async (c) => {
   const ipHash = await hashIp(c.req.header('cf-connecting-ip') ?? 'unknown');
   const recent = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE ip_hash=? AND created_at > unixepoch() - 3600')
     .bind(ipHash).first<{ n: number }>();
-  if ((recent?.n ?? 0) >= 5) return c.json({ error: 'Слишком много заявок. Позвоните нам: 8 900 596-45-77' }, 429);
+  if ((recent?.n ?? 0) >= 5) return c.json({ error: 'Слишком много заявок за час. Позвоните нам, пожалуйста.' }, 429);
 
   const ins = await c.env.DB.prepare('INSERT INTO leads (name, phone, message, ip_hash) VALUES (?,?,?,?)')
     .bind(name, phone, message, ipHash).run();
@@ -171,7 +171,7 @@ app.post('/api/lead', async (c) => {
     } catch { /* заявка уже сохранена */ }
   }
   if (sent) await c.env.DB.prepare('UPDATE leads SET sent=1 WHERE id=?').bind(id).run();
-  return sent ? c.json({ ok: true }) : c.json({ error: 'Не удалось отправить заявку. Позвоните нам: 8 900 596-45-77' }, 502);
+  return sent ? c.json({ ok: true }) : c.json({ error: 'Попробуйте ещё раз или позвоните нам.' }, 502);
 });
 
 /* ---------- вход в админку ---------- */

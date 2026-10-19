@@ -71,9 +71,6 @@ footer{background:#0a1824;border-top:1px solid var(--line);padding-block:40px 28
 .lead .btn{margin-top:18px;width:100%;cursor:pointer;font:inherit;font-weight:700;border:0}
 .lead .btn:disabled{opacity:.6;cursor:default}
 .lead .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
-.lf-status{margin:14px 0 0;padding:10px 14px;border-radius:6px}
-.lf-status.ok{background:#12402a;border:1px solid #2d7a53;color:#c8f1da}
-.lf-status.bad{background:#4a1d17;border:1px solid #8a3a30;color:#ffd5cc}
 
 .gal-wrap{position:relative}
 .gal{position:relative}
@@ -106,4 +103,12 @@ footer{background:#0a1824;border-top:1px solid var(--line);padding-block:40px 28
 .vbox.vfull{position:fixed;inset:0;z-index:100;width:auto;height:auto}
 .vbox:fullscreen .vfs,.vbox.vfull .vfs{top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px))}
 html.vlock{overflow:hidden}
+
+.lf-status{margin:16px 0 0;display:flex;gap:14px;align-items:center;border-radius:8px;padding:14px 16px;border:1px solid var(--gold);background:rgba(226,180,79,.08)}
+.lf-status[hidden]{display:none}
+.lf-status .ico{flex:none;width:38px;height:38px;border-radius:50%;background:var(--gold);color:var(--gold-ink);display:grid;place-items:center}
+.lf-status b{display:block}
+.lf-status span>span{color:var(--muted);font-size:.92rem}
+.lf-status.bad{border-color:#b5584a;background:rgba(181,88,74,.12)}
+.lf-status.bad .ico{background:#b5584a;color:#fff;font-size:1.2rem}
 `;
