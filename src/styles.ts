@@ -3,7 +3,7 @@ export const CSS = `
 :root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;--red:#e0382c;--red-hi:#ff5a4d;color-scheme:dark;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%;font-size:clamp(1rem,.84rem + .44vw,1.375rem)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;font-size:clamp(1rem,.875rem + .3vw,1.25rem)}
 body{background:var(--bg);color:var(--fg);font:1rem/1.6 var(--body);
   background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:40px 40px;background-position:-1px -1px;background-attachment:scroll}
 a{color:inherit}
