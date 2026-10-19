@@ -243,4 +243,13 @@ html.vlock{overflow:hidden}
   .kd .tb text.m{font-size:13px}
   .kd .note{font-size:15px}
 }
+
+/* значок услуги в рамке слева от названия */
+.row.svc{grid-template-columns:10.5rem minmax(0,1fr) auto}
+.svc-lead{display:flex;align-items:center;gap:.7rem;min-width:0}
+.svc-tile{display:grid;place-items:center;flex:none;width:2.9rem;height:2.9rem;border:1px solid var(--gold);border-radius:.375rem;background:rgba(226,180,79,.09);color:var(--gold)}
+.svc-tile .ico{width:1.5rem;height:1.5rem}
+.svc-tile .ico *{stroke-width:1.7}
+.svc-lead .lbl{overflow-wrap:anywhere}
+@media (max-width:35rem){.row.svc{grid-template-columns:1fr}}
 `;

@@ -37,7 +37,7 @@ ${opts.head ?? ''}
 export interface Service {
   id: number; label: string; title: string; short: string;
   price: number | null; mode: 'from' | 'fixed' | 'sale' | 'none'; old_price: number | null; details: string;
-  note: string; show_note: number;
+  note: string; show_note: number; icon: string;
 }
 
 /** Текст услуги из админки: пустая строка разделяет абзацы, строки с «- » становятся списком. */
@@ -57,6 +57,18 @@ export function renderDetails(text: string): string {
   }).join('');
 }
 
+/** Значки услуг (линейные, 24x24). Подписи показываются в админке при выборе. */
+export const SERVICE_ICONS: Record<string, string> = {
+  key: 'Ключ', fob: 'Домофонная таблетка', phone: 'Телефон', plug: 'Зарядка, шнур', shield: 'Защита', wrench: 'Ремонт',
+};
+const ICON_SYMBOLS =
+  '<symbol id="s-key" viewBox="0 0 24 24"><g transform="rotate(-45 12 12)"><circle cx="5.6" cy="12" r="3.8"/><circle cx="5.6" cy="12" r="1.1"/><path d="M9.4 12H21.5M17.5 12v3.4M21 12v2.4"/></g></symbol>'
+  + '<symbol id="s-fob" viewBox="0 0 24 24"><circle cx="12" cy="14" r="7.6"/><circle cx="12" cy="14" r="3"/><path d="M7.2 6.8 5.4 3.6a1.9 1.9 0 0 1 3.2-2"/></symbol>'
+  + '<symbol id="s-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2"/><path d="M10.5 18.5h3"/><path d="M9 10.5 13.6 5.9M9 14.5l6.2-6.2"/></symbol>'
+  + '<symbol id="s-plug" viewBox="0 0 24 24"><path d="M9 2.5v5M15 2.5v5"/><path d="M6.5 7.5h11v3.2a5.5 5.5 0 0 1-11 0z"/><path d="M12 16.2v5.3"/></symbol>'
+  + '<symbol id="s-shield" viewBox="0 0 24 24"><path d="M12 2.8 4.8 5.6v5.6c0 4.4 3 7.6 7.2 9.2 4.2-1.6 7.2-4.8 7.2-9.2V5.6z"/><path d="M8.6 11.8l2.4 2.4 4.4-4.8"/></symbol>'
+  + '<symbol id="s-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>';
+
 export function servicePrice(s: Service): string {
   if (s.price == null || s.mode === 'none') return '';
   const note = s.show_note && s.note.trim() ? `<span class="svc-note">${esc(s.note.trim())}</span>` : '';
@@ -68,7 +80,9 @@ function serviceRow(s: Service): string {
   const more = s.details.trim()
     ? `<details class="svc-more"><summary>Подробнее</summary><div class="svc-text">${renderDetails(s.details)}</div></details>`
     : '';
-  return `<div class="row svc" id="service-${s.id}"><span class="lbl">${esc(s.label)}</span><div><h3>${esc(s.title)}</h3><p>${esc(s.short)}</p></div>${servicePrice(s)}${more}</div>`;
+  const icon = s.icon in SERVICE_ICONS ? s.icon : 'key';
+  const lead = `<div class="svc-lead"><span class="svc-tile"><svg class="ico" aria-hidden="true"><use href="#s-${icon}"/></svg></span>${s.label ? `<span class="lbl">${esc(s.label)}</span>` : ''}</div>`;
+  return `<div class="row svc" id="service-${s.id}">${lead}<div><h3>${esc(s.title)}</h3><p>${esc(s.short)}</p></div>${servicePrice(s)}${more}</div>`;
 }
 
 const DAYS_LD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -165,6 +179,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
 
   const body = `
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  ${ICON_SYMBOLS}
   <symbol id="i-wa" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/><path d="M8.9 8.6c0 3.3 2.7 6 6 6" stroke-width="2.6"/></symbol>
   <symbol id="i-tg" viewBox="0 0 24 24"><path d="M21.5 3 2.8 10.3l6 2.3 2.3 6.9 3.3-4 5 3.7z"/><path d="M8.8 12.6 21.5 3"/></symbol>
   <symbol id="i-ph" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>

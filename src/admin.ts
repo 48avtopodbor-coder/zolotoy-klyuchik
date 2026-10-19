@@ -1,4 +1,4 @@
-import { esc, rub, shell, type Service } from './views';
+import { esc, rub, shell, SERVICE_ICONS, type Service } from './views';
 import { DAY_LONG, type Contacts, type Hours } from './settings';
 
 export interface AdminProduct {
@@ -318,6 +318,8 @@ function serviceForm(s: Service | null, i: number, total: number): string {
     <div><label for="${id}-title">Название услуги</label><input id="${id}-title" name="title" type="text" maxlength="120" required value="${esc(s?.title ?? '')}"></div>
     <div><label for="${id}-label">Короткая метка слева (1–2 слова)</label><input id="${id}-label" name="label" type="text" maxlength="24" value="${esc(s?.label ?? '')}"></div>
   </div>
+  <label for="${id}-icon">Значок слева от названия</label>
+  <select id="${id}-icon" name="icon" class="sel">${Object.entries(SERVICE_ICONS).map(([v, t]) => `<option value="${v}"${(s?.icon ?? 'key') === v ? ' selected' : ''}>${t}</option>`).join('')}</select>
   <label for="${id}-short">Краткое описание под названием</label>
   <input id="${id}-short" name="short" type="text" maxlength="300" value="${esc(s?.short ?? '')}">
   <div class="row2">
