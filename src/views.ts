@@ -100,6 +100,29 @@ function jsonLd(origin: string, contacts: Contacts, hours: Hours, services: Serv
   return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
 }
 
+/* Чертёж ключа на первом экране: лист с рамкой, размерами и штампом.
+   Цифры условные: рисунок декоративный. Размеры линий и шрифтов задаёт CSS (.kd). */
+const arrow = (x: number, y: number, a: number) =>
+  `<polygon transform="translate(${x} ${y}) rotate(${a})" points="0,0 -7,-2.6 -7,2.6"/>`;
+
+const KEY_DRAWING = (() => {
+  const key = '<circle class="o" cx="62" cy="75" r="46"/><circle class="o" cx="62" cy="75" r="14"/>'
+    + '<path class="o" d="M108 66H370V84H346V104H328V84H300V98H284V84H108Z"/>'
+    + '<path class="g" d="M130 66V84M170 66V84M210 66V84"/>';
+  const axes = '<path class="c" d="M-8 75H128M62 20V130"/>';
+  const len = `<g class="dim"><path d="M16 124V152M370 88V152M16 146H370"/>${arrow(16, 146, 180)}${arrow(370, 146, 0)}<text x="193" y="140" text-anchor="middle">62</text></g>`;
+  const head = `<g class="dim"><path d="M94.53 107.53L12 25H-18"/>${arrow(29.47, 42.47, 225)}${arrow(94.53, 107.53, 45)}<text x="-18" y="20">Ø16</text></g>`;
+  const stem = `<g class="dim"><path d="M372 66H400M372 84H400M394 50V66M394 84V100"/>${arrow(394, 66, 90)}${arrow(394, 84, -90)}<text x="404" y="75" dominant-baseline="middle">3,2</text></g>`;
+  const tooth = `<g class="dim"><path d="M328 104H306M314 84V104"/>${arrow(314, 84, -90)}${arrow(314, 104, 90)}<text x="314" y="124" text-anchor="middle">3,5</text></g>`;
+  const stamp = '<g class="tb"><rect x="300" y="222" width="200" height="78"/><path d="M300 248H500M300 274H500M424 248V274"/>'
+    + '<text class="b" x="310" y="241">ДУБЛИКАТ КЛЮЧА</text><text x="310" y="267">Масштаб 1:1</text><text x="434" y="267">Лист 1</text>'
+    + '<text class="m" x="310" y="291">Золотой ключик, Липецк</text></g>';
+  return '<svg class="key kd" viewBox="0 0 510 310" role="img" aria-label="Чертёж ключа: длина 62 миллиметра, диаметр головки 16, толщина стержня 3,2, глубина зубца 3,5">'
+    + '<rect class="frame" x="3" y="3" width="504" height="304" rx="2"/><rect class="frame2" x="10" y="10" width="490" height="290"/>'
+    + `<g transform="translate(40 48)">${axes}${key}${len}${head}${stem}${tooth}</g>`
+    + stamp + '<text class="note" x="20" y="292">размеры в мм</text></svg>';
+})();
+
 function productCard(p: Product): string {
   const photos = p.images.length
     ? `<div class="gal"><div class="gal-track">${p.images
@@ -163,12 +186,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
       </div>
       <div class="state" id="state">${hoursRows(hours).map((r) => `${r.label} ${r.value}`).join(', ')}</div>
     </div>
-    <svg class="key" viewBox="0 0 400 150" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="62" cy="75" r="46"/><circle cx="62" cy="75" r="14"/>
-      <path d="M108 66H370V84H346V104H328V84H300V98H284V84H108Z"/>
-      <path d="M130 66V84M170 66V84M210 66V84" stroke-dasharray="3 5" opacity=".55"/>
-      <path d="M62 8V20M62 130V142M2 75H14M110 75H122" opacity=".4"/>
-    </svg>
+    ${KEY_DRAWING}
   </div></div>
 
   <section><div class="wrap">

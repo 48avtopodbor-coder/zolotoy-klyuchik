@@ -1,6 +1,6 @@
 export const CSS = `
 /* Вариант В: спокойный и аккуратный, синяя «чертёжная» гамма, тонкие линии, профиль ключа как главный образ */
-:root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;--red:#e0382c;--red-hi:#ff5a4d;--wa:#25d366;--wa-ink:#05230f;--tg:#2aabee;--tg-ink:#04141c;color-scheme:dark;
+:root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;--red:#e0382c;--red-hi:#ff5a4d;--wa:#25d366;--wa-ink:#05230f;--tg:#2aabee;--tg-ink:#04141c;--dim:#7fa9d3;color-scheme:dark;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;font-size:clamp(1rem,.93rem + .15vw,1.125rem)}
@@ -221,4 +221,26 @@ html.vlock{overflow:hidden}
 .split:active{transform:translateY(1px) scale(.98)}
 
 @media (max-width:35rem){.btns .btn.gold,.btns .split{width:100%}.btns .btn.gold{justify-content:center}.split .label{flex:1;justify-content:center;padding:0 1rem}}
+
+/* чертёж ключа: линии, размеры, штамп (размеры шрифта заданы в единицах рисунка) */
+.kd .o{fill:none;stroke:var(--gold);stroke-width:2.2;stroke-linejoin:round}
+.kd .g{fill:none;stroke:var(--gold);stroke-width:1.4;stroke-dasharray:2 5;opacity:.6}
+.kd .c{fill:none;stroke:var(--gold);stroke-width:1;stroke-dasharray:14 3 2 3;opacity:.45}
+.kd .frame{fill:none;stroke:var(--dim);stroke-width:1.6}
+.kd .frame2{fill:none;stroke:var(--dim);stroke-width:1}
+.kd .dim path{fill:none;stroke:var(--dim);stroke-width:1}
+.kd .dim polygon{fill:var(--dim);stroke:none}
+.kd .dim text{font:14px var(--mono);fill:var(--fg);stroke:none}
+.kd .tb rect,.kd .tb path{fill:none;stroke:var(--dim);stroke-width:1}
+.kd .tb text{font:12.5px var(--mono);fill:var(--fg)}
+.kd .tb text.b{font-weight:700;fill:var(--gold);font-size:13.5px}
+.kd .tb text.m{fill:var(--muted);font-size:11.5px}
+.kd .note{font:12px var(--mono);fill:var(--muted)}
+@media (max-width:43.75rem){
+  .kd .dim text{font-size:18px}
+  .kd .tb text{font-size:16px}
+  .kd .tb text.b{font-size:17px}
+  .kd .tb text.m{font-size:13px}
+  .kd .note{font-size:15px}
+}
 `;
