@@ -1,6 +1,6 @@
 import { esc, rub, shell, SERVICE_ICONS, type Service } from './views';
 import { DAY_LONG, mskToday, ruDate, type Contacts, type Hours, type Site, type SpecialDay } from './settings';
-import { SUN_LIB } from './theme';
+import { SUN_LIB, type ThemeCfg } from './theme';
 
 export interface AdminProduct {
   id: number; title: string; description: string; price: number | null; old_price: number | null;
@@ -13,6 +13,7 @@ const TABS: [string, string, string][] = [
   ['products', 'Товары', '/admin/products'],
   ['services', 'Услуги и цены', '/admin/services'],
   ['site', 'Главная страница', '/admin/site'],
+  ['theme', 'Выбор темы', '/admin/theme'],
   ['videos', 'Видео', '/admin/videos'],
   ['hours', 'Часы работы', '/admin/hours'],
   ['contacts', 'Контакты', '/admin/contacts'],
@@ -387,20 +388,13 @@ ${serviceForm(null, 0, 0)}`, flash);
 
 /* ---------- главная страница ---------- */
 
-/** Подсказка в админке: во сколько сегодня восход и закат (считается в браузере той же формулой, что и на сайте). */
-const THEME_HINT_JS = `<script>(function(){${SUN_LIB}
-var t=new Date(Date.now()+3*36e5),s=sunMsk(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate()),el=document.getElementById('th_today');
-if(el)el.textContent='Сегодня восход в '+fmtMsk(s[0])+', закат в '+fmtMsk(s[1])+' по Москве.';
-})()</script>`;
-
 export function sitePage(site: Site, flash?: string): string {
-  const tm = ['sun', 'hours', 'light', 'dark'].includes(site.theme.mode) ? site.theme.mode : 'sun';
   const photo = (key: string | null, label: string) => key ? `<img class="pv" src="/img/${esc(key)}" alt="${esc(label)}">` : '<div class="hint">Фото пока нет.</div>';
   const steps = site.steps.map((st, i) => `<div class="card" style="margin-bottom:1rem"><b>Шаг ${i + 1}</b>
   <label for="st${i}t">Заголовок</label><input id="st${i}t" name="step${i}_t" type="text" maxlength="80" value="${esc(st.t)}">
   <label for="st${i}d">Описание</label><textarea id="st${i}d" name="step${i}_d" maxlength="220" style="min-height:4.5rem">${esc(st.d)}</textarea></div>`).join('');
   return layout('site', 'Главная страница', `
-<p class="sub">Фото на первом экране, блок «Как мы работаем», сравнение «до и после» для плёнки и смена дня и ночи.</p>
+<p class="sub">Фото на первом экране, блок «Как мы работаем» и сравнение «до и после» для плёнки.</p>
 <style>.pv{display:block;max-width:20rem;width:100%;border-radius:.5rem;border:1px solid var(--line);margin:.4rem 0}.ba2{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem}</style>
 <form class="f" method="post" action="/admin/site" enctype="multipart/form-data" data-img data-max="1400" data-next="/admin/site?saved=1">
   <div class="err" hidden></div>
@@ -426,18 +420,62 @@ export function sitePage(site: Site, flash?: string): string {
     <label for="ba_caption">Подпись под сравнением</label>
     <input id="ba_caption" name="ba_caption" type="text" maxlength="100" value="${esc(site.ba.caption)}">
   </div>
-  <div class="card" style="margin-top:1rem"><b>Светлая и тёмная тема</b>
-    <p class="hint">Сайт сам переключается между светлым днём и тёмным ночью по московскому времени. Посетитель может нажать кнопку с солнцем или луной в шапке: его выбор действует до ближайшей смены дня и ночи, потом сайт снова переключится сам.</p>
-    <div class="chk"><input id="th_sun" name="theme_mode" type="radio" value="sun"${tm === 'sun' ? ' checked' : ''}><label for="th_sun">По солнцу: светлая от восхода до заката в Липецке, ночью тёмная</label></div>
-    <p class="hint" id="th_today" style="margin:-.25rem 0 .5rem 2rem"></p>
-    <div class="chk"><input id="th_hours" name="theme_mode" type="radio" value="hours"${tm === 'hours' ? ' checked' : ''}><label for="th_hours">По часам: каждый день в одно и то же время</label></div>
-    <div class="row2" style="margin-left:2rem">
-      <div><label for="th_from">Светлая с</label><input id="th_from" name="theme_from" type="time" value="${esc(site.theme.from)}"></div>
-      <div><label for="th_to">до (остальное время тёмная)</label><input id="th_to" name="theme_to" type="time" value="${esc(site.theme.to)}"></div>
+  <p><button class="abtn gold" type="submit">Сохранить</button></p>
+</form>`, flash, IMG_JS);
+}
+
+/* ---------- выбор темы ---------- */
+
+/** Подсказки на странице: сегодняшние восход и закат и то, как сайт выглядит прямо сейчас (считает браузер, формула та же, что на сайте). */
+const themeHintJs = (th: ThemeCfg) => `<script>(function(){${SUN_LIB}
+var C=${JSON.stringify({ m: th.mode, f: th.from, t: th.to })},t=new Date(Date.now()+3*36e5),s=sunMsk(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate()),a=document.getElementById('th_today'),n=document.getElementById('th_now');
+if(a)a.textContent='Сегодня восход в '+fmtMsk(s[0])+', закат в '+fmtMsk(s[1])+' по Москве.';
+if(n)n.textContent='Сейчас сайт открывается '+(dayState(C,Date.now()).day?'светлым':'тёмным')+'.';
+})()</script>`;
+
+export function themePage(th: ThemeCfg, flash?: string, error?: string): string {
+  const top = th.mode === 'dark' ? 'dark' : th.mode === 'light' ? 'light' : 'auto';
+  const how = th.mode === 'hours' ? 'hours' : 'sun';
+  const opt = (id: string, val: string, swatch: string, title: string, text: string) =>
+    `<label class="opt" for="${id}"><input id="${id}" name="theme_top" type="radio" value="${val}"${top === val ? ' checked' : ''}><span class="sw ${swatch}" aria-hidden="true"></span><span><b>${title}</b><small>${text}</small></span></label>`;
+  return layout('theme', 'Выбор темы', `
+<p class="sub">Какой вид у сайта: светлый или тёмный. Посетитель всё равно может сам нажать кнопку с солнцем или луной в шапке сайта. Его выбор действует до ближайшей смены дня и ночи.</p>
+<p class="hint" id="th_now" style="margin:-.5rem 0 1.25rem"></p>
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+<style>
+.tmo{display:grid;gap:.875rem;margin:0 0 1.25rem}
+.grp{border:1px solid var(--line);border-radius:.625rem;background:var(--panel)}
+.grp:has(.opt input:checked){border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.f .opt{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:.9rem;align-items:center;margin:0;padding:1rem;font-weight:400;cursor:pointer}
+.f .opt input{width:1.375rem;height:1.375rem;accent-color:var(--gold);margin:0}
+.opt b{display:block;font-size:1.05rem}
+.opt small{display:block;color:var(--muted);margin-top:.15rem;font-size:.9rem}
+.sw{position:relative;width:4.25rem;height:2.75rem;border-radius:.4rem;border:1px solid var(--line);overflow:hidden}
+.sw::after{content:"";position:absolute;left:.4rem;right:.4rem;bottom:.4rem;height:.35rem;border-radius:2px;background:#e2b44f}
+.sw.dark{background:#0f2233}.sw.light{background:#eef2f6}.sw.auto{background:linear-gradient(115deg,#eef2f6 50%,#0f2233 50%)}
+.autosub{padding:0 1rem 1rem 1rem}
+.autosub .in{border-top:1px solid var(--line);padding-top:.5rem}
+.grp:not(:has(.opt input:checked)) .autosub{opacity:.5}
+.autosub .row2{margin:0 0 0 2.0rem}
+@media (max-width:30rem){.f .opt{grid-template-columns:auto minmax(0,1fr)}.opt .sw{display:none}.autosub .row2{margin-left:0}}
+</style>
+<form class="f" method="post" action="/admin/theme">
+  <div class="tmo">
+    <div class="grp">
+      ${opt('t_auto', 'auto', 'auto', 'Авто', 'Днём светлая, ночью тёмная. Сайт сам переключается по московскому времени.')}
+      <div class="autosub"><div class="in">
+        <div class="chk"><input id="th_sun" name="theme_how" type="radio" value="sun"${how === 'sun' ? ' checked' : ''}><label for="th_sun">По солнцу: светлая от восхода до заката в Липецке</label></div>
+        <p class="hint" id="th_today" style="margin:-.25rem 0 .5rem 2rem"></p>
+        <div class="chk"><input id="th_hours" name="theme_how" type="radio" value="hours"${how === 'hours' ? ' checked' : ''}><label for="th_hours">По часам: каждый день в одно и то же время</label></div>
+        <div class="row2">
+          <div><label for="th_from">Светлая с</label><input id="th_from" name="theme_from" type="time" value="${esc(th.from)}"></div>
+          <div><label for="th_to">до (остальное время тёмная)</label><input id="th_to" name="theme_to" type="time" value="${esc(th.to)}"></div>
+        </div>
+      </div></div>
     </div>
-    <div class="chk"><input id="th_light" name="theme_mode" type="radio" value="light"${tm === 'light' ? ' checked' : ''}><label for="th_light">Всегда светлая</label></div>
-    <div class="chk"><input id="th_dark" name="theme_mode" type="radio" value="dark"${tm === 'dark' ? ' checked' : ''}><label for="th_dark">Всегда тёмная</label></div>
+    <div class="grp">${opt('t_dark', 'dark', 'dark', 'Тёмная', 'Всегда тёмная, и днём тоже.')}</div>
+    <div class="grp">${opt('t_light', 'light', 'light', 'Светлая', 'Всегда светлая, и ночью тоже.')}</div>
   </div>
   <p><button class="abtn gold" type="submit">Сохранить</button></p>
-</form>`, flash, IMG_JS + THEME_HINT_JS);
+</form>`, flash, themeHintJs(th));
 }

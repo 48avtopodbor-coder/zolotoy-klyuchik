@@ -498,12 +498,6 @@ app.post('/admin/site', async (c) => {
   const next: Site = JSON.parse(JSON.stringify(cur));
   const db = c.env.DB;
 
-  const mode = String(f.get('theme_mode') ?? '');
-  if (mode === 'sun' || mode === 'hours' || mode === 'light' || mode === 'dark') next.theme.mode = mode;
-  const from = String(f.get('theme_from') ?? ''), to = String(f.get('theme_to') ?? '');
-  if (TIME_RE.test(from) && TIME_RE.test(to)) { next.theme.from = from; next.theme.to = to; }
-  if (next.theme.mode === 'hours' && next.theme.from >= next.theme.to) return c.text('Светлая тема должна начинаться раньше, чем заканчиваться', 400);
-
   const put = async (name: string): Promise<string | null | 'bad'> => {
     const file = files(f, name)[0];
     if (!file) return null;
@@ -540,6 +534,25 @@ app.post('/admin/site', async (c) => {
 
   await saveSetting(db, 'site', next);
   return c.redirect('/admin/site?saved=1');
+});
+
+/* ---------- выбор темы: авто, тёмная или светлая ---------- */
+
+app.get('/admin/theme', (c) => c.html(A.themePage(c.get('st').site.theme, A.flashText(q(c)))));
+
+app.post('/admin/theme', async (c) => {
+  const f = await c.req.formData();
+  const cur = c.get('st').site;
+  const top = String(f.get('theme_top') ?? 'auto'), how = String(f.get('theme_how') ?? 'sun');
+  const from = String(f.get('theme_from') ?? ''), to = String(f.get('theme_to') ?? '');
+  const theme = { ...cur.theme };
+  const okTimes = TIME_RE.test(from) && TIME_RE.test(to) && from < to;
+  if (okTimes) { theme.from = from; theme.to = to; }
+  theme.mode = top === 'dark' ? 'dark' : top === 'light' ? 'light' : how === 'hours' ? 'hours' : 'sun';
+  if (theme.mode === 'hours' && !okTimes)
+    return c.html(A.themePage({ ...theme, from: TIME_RE.test(from) ? from : theme.from, to: TIME_RE.test(to) ? to : theme.to }, undefined, 'Проверьте время: светлая тема должна начинаться раньше, чем заканчиваться'), 400);
+  await saveSetting(c.env.DB, 'site', { ...cur, theme });
+  return c.redirect('/admin/theme?saved=1');
 });
 
 /* ---------- видео ---------- */
