@@ -209,7 +209,7 @@ html.vlock{overflow:hidden}
 .split .tile{display:grid;place-items:center;width:3.125rem;background:var(--c);color:var(--ink)}
 .split .label{display:flex;align-items:center;padding:0 1.15rem;background:rgba(255,255,255,.04)}
 .mlink{display:inline-flex;align-items:center;gap:.5rem}
-.mlink.wa .ico{color:var(--wa)}.mlink.tg .ico{color:var(--tg)}
+.mlink.wa .ico{color:var(--wa)}.mlink.tg .ico{color:var(--tg)}.mlink.phone .ico{color:var(--gold)}
 .mlink .ico{width:1.2rem;height:1.2rem}
 @media (prefers-reduced-motion:no-preference){.split,.split .label{transition:background-color .18s ease,box-shadow .18s ease,border-color .18s ease}}
 @media (hover:hover){

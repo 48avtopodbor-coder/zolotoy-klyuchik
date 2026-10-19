@@ -161,7 +161,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   </div></section>`
     : '';
   const hoursJson = JSON.stringify(hours).replace(/</g, '\\u003c');
-  const phonesHtml = contacts.phones.map((p) => `<p><a href="tel:${phoneTel(p)}">${esc(p)}</a></p>`).join('');
+  const phonesHtml = contacts.phones.map((p) => `<p><a class="mlink phone" href="tel:${phoneTel(p)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>${esc(p)}</a></p>`).join('');
 
   const body = `
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
