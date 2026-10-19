@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, makeSession, passwordOk, sessionOk, verifyPassword, SESSION_MAX_AGE } from './auth';
 import { DEFAULT_CONTACTS, TIME_RE, loadSettings, saveSetting, type Contacts, type Hours, type Settings } from './settings';
-import { homePage, type Product, type Video } from './views';
+import { homePage, type Product, type Service, type Video } from './views';
 import * as A from './admin';
 
 type Env = {
@@ -35,6 +35,9 @@ async function loadProducts(db: D1Database): Promise<Product[]> {
   }
   return (p.results as Omit<Product, 'images'>[]).map((x) => ({ ...x, images: imgs.get(x.id) ?? [] }));
 }
+
+const loadServices = async (db: D1Database) =>
+  (await db.prepare('SELECT id,label,title,short,price,mode,old_price,details FROM services ORDER BY position, id').all<Service>()).results;
 
 const loadVideos = async (db: D1Database) =>
   (await db.prepare('SELECT id,url,oid,vid,cover_key FROM videos ORDER BY position, id').all<Video>()).results;
@@ -99,8 +102,8 @@ const files = (form: FormData, name: string): File[] =>
 /* ---------- публичная часть ---------- */
 
 app.get('/', async (c) => {
-  const [products, videos, st] = await Promise.all([loadProducts(c.env.DB), loadVideos(c.env.DB), loadSettings(c.env.DB)]);
-  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts }), 200, 'public, max-age=30');
+  const [products, videos, st, services] = await Promise.all([loadProducts(c.env.DB), loadVideos(c.env.DB), loadSettings(c.env.DB), loadServices(c.env.DB)]);
+  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, services, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
 });
 
 app.get('/img/:key', async (c) => {
@@ -121,7 +124,12 @@ app.get('/img/:key', async (c) => {
   return res;
 });
 
-app.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /admin\n'));
+app.get('/robots.txt', (c) => c.text(`User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${new URL(c.req.url).origin}/sitemap.xml\n`));
+app.get('/sitemap.xml', (c) => {
+  const today = new Date().toISOString().slice(0, 10);
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${new URL(c.req.url).origin}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`,
+    { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+});
 
 /* ---------- заявки с сайта ---------- */
 
@@ -417,6 +425,58 @@ app.post('/admin/products/:id/delete', async (c) => {
   ]);
   await dropImages(c, results.map((r) => r.image_key));
   return c.redirect('/admin/products?deleted=1');
+});
+
+/* ---------- услуги и цены ---------- */
+
+app.get('/admin/services', async (c) => c.html(A.servicesPage(await loadServices(c.env.DB), A.flashText(q(c)))));
+
+function serviceFields(f: FormData) {
+  const mode = String(f.get('mode') ?? 'from');
+  return {
+    label: String(f.get('label') ?? '').trim().slice(0, 24),
+    title: String(f.get('title') ?? '').trim().slice(0, 120),
+    short: String(f.get('short') ?? '').trim().slice(0, 300),
+    price: toInt(f.get('price'), 10_000_000),
+    mode: ['from', 'fixed', 'sale', 'none'].includes(mode) ? mode : 'from',
+    old_price: toInt(f.get('old_price'), 10_000_000),
+    details: String(f.get('details') ?? '').trim().slice(0, 6000),
+  };
+}
+
+app.post('/admin/services', async (c) => {
+  const v = serviceFields(await c.req.formData());
+  if (!v.title) return c.redirect('/admin/services');
+  const pos = await c.env.DB.prepare('SELECT COALESCE(MAX(position),0)+1 AS p FROM services').first<{ p: number }>();
+  await c.env.DB.prepare('INSERT INTO services (label,title,short,price,mode,old_price,details,position) VALUES (?,?,?,?,?,?,?,?)')
+    .bind(v.label, v.title, v.short, v.price, v.mode, v.old_price, v.details, pos?.p ?? 1).run();
+  return c.redirect('/admin/services?added=1');
+});
+
+app.post('/admin/services/:id', async (c) => {
+  const v = serviceFields(await c.req.formData());
+  if (!v.title) return c.redirect('/admin/services');
+  await c.env.DB.prepare('UPDATE services SET label=?,title=?,short=?,price=?,mode=?,old_price=?,details=? WHERE id=?')
+    .bind(v.label, v.title, v.short, v.price, v.mode, v.old_price, v.details, Number(c.req.param('id'))).run();
+  return c.redirect('/admin/services?saved=1');
+});
+
+app.post('/admin/services/:id/move', async (c) => {
+  const id = Number(c.req.param('id'));
+  const dir = String((await c.req.formData()).get('dir'));
+  const list = await loadServices(c.env.DB);
+  const i = list.findIndex((x) => x.id === id);
+  const j = dir === 'up' ? i - 1 : i + 1;
+  if (i >= 0 && j >= 0 && j < list.length) {
+    [list[i], list[j]] = [list[j], list[i]];
+    await c.env.DB.batch(list.map((x, n) => c.env.DB.prepare('UPDATE services SET position=? WHERE id=?').bind(n + 1, x.id)));
+  }
+  return c.redirect('/admin/services?saved=1');
+});
+
+app.post('/admin/services/:id/delete', async (c) => {
+  await c.env.DB.prepare('DELETE FROM services WHERE id=?').bind(Number(c.req.param('id'))).run();
+  return c.redirect('/admin/services?deleted=1');
 });
 
 /* ---------- видео ---------- */

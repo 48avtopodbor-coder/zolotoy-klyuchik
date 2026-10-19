@@ -146,4 +146,21 @@ html.vlock{overflow:hidden}
 .cw-chips{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start}
 .cw-chips button{border:1px solid var(--gold);background:none;color:var(--gold);border-radius:99px;padding:8px 14px;font:inherit;font-size:.88rem;cursor:pointer}
 .cw-chips button:hover{background:rgba(226,180,79,.12)}
+
+.row.svc{grid-template-columns:130px minmax(0,1fr) auto;align-items:start}
+.svc-price{font:700 1.1rem var(--mono);color:var(--gold);white-space:nowrap;text-align:right;padding-top:2px}
+.svc-price span{font-size:.8rem;font-weight:500;color:var(--muted)}
+.svc-price s{display:block;color:var(--muted);font-weight:400;font-size:.82rem}
+.svc-price small{display:inline-block;font:700 .62rem var(--mono);letter-spacing:.1em;text-transform:uppercase;background:var(--gold);color:var(--gold-ink);padding:2px 7px;border-radius:4px;margin-right:6px;vertical-align:middle}
+.svc-more{grid-column:2/-1;margin-top:6px}
+.svc-more summary{cursor:pointer;color:var(--gold);font-size:.9rem;list-style:none;width:max-content}
+.svc-more summary::-webkit-details-marker{display:none}
+.svc-more summary::after{content:" ▾"}
+.svc-more[open] summary::after{content:" ▴"}
+.svc-more summary:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.svc-text{margin-top:10px;color:var(--fg);max-width:68ch}
+.svc-text p{margin:0 0 10px;color:var(--muted)}
+.svc-text ul{margin:0 0 10px;padding-left:1.2em;color:var(--muted)}
+.svc-text li{margin:3px 0}
+@media (max-width:560px){.row.svc{grid-template-columns:1fr;gap:4px}.svc-price{text-align:left}.svc-more{grid-column:1}}
 `;

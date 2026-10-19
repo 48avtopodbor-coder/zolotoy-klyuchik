@@ -1,4 +1,4 @@
-import { esc, rub, shell } from './views';
+import { esc, rub, shell, type Service } from './views';
 import { DAY_LONG, type Contacts, type Hours } from './settings';
 
 export interface AdminProduct {
@@ -10,6 +10,7 @@ export interface Lead { id: number; name: string; phone: string; message: string
 
 const TABS: [string, string, string][] = [
   ['products', 'Товары', '/admin/products'],
+  ['services', 'Услуги и цены', '/admin/services'],
   ['videos', 'Видео', '/admin/videos'],
   ['hours', 'Часы работы', '/admin/hours'],
   ['contacts', 'Контакты', '/admin/contacts'],
@@ -297,4 +298,45 @@ export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): str
   return layout('chats', 'Чаты', `<p class="sub">Переписки с посетителями через чат на сайте. Отвечать нужно в Telegram, нажав «Ответить» на сообщение. Переписки старше 30 дней удаляются сами.</p>
 <style>.chat-item{border-top:1px solid var(--line);padding:12px 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.chat-log{display:flex;flex-direction:column;gap:8px;margin:12px 0}.cm{max-width:88%;padding:8px 12px;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
 <div class="card">${rows}</div>`, flash);
+}
+
+/* ---------- услуги и цены ---------- */
+
+const MODES: [string, string][] = [['from', 'От (цена «от …»)'], ['fixed', 'Фиксированная цена'], ['sale', 'Акция (старая цена зачёркнута)'], ['none', 'Не показывать цену']];
+
+function serviceForm(s: Service | null, i: number, total: number): string {
+  const act = s ? `/admin/services/${s.id}` : '/admin/services';
+  const id = s ? `s${s.id}` : 'new';
+  return `<form class="card f" method="post" action="${act}">
+  <div class="row2">
+    <div><label for="${id}-title">Название услуги</label><input id="${id}-title" name="title" type="text" maxlength="120" required value="${esc(s?.title ?? '')}"></div>
+    <div><label for="${id}-label">Короткая метка слева (1–2 слова)</label><input id="${id}-label" name="label" type="text" maxlength="24" value="${esc(s?.label ?? '')}"></div>
+  </div>
+  <label for="${id}-short">Краткое описание под названием</label>
+  <input id="${id}-short" name="short" type="text" maxlength="300" value="${esc(s?.short ?? '')}">
+  <div class="row2">
+    <div><label for="${id}-mode">Как показывать цену</label><select id="${id}-mode" name="mode" class="sel">${MODES.map(([v, t]) => `<option value="${v}"${(s?.mode ?? 'from') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div><label for="${id}-price">Цена, ₽</label><input id="${id}-price" name="price" type="number" min="0" max="10000000" inputmode="numeric" value="${s?.price ?? ''}"></div>
+  </div>
+  <label for="${id}-old">Старая цена, ₽ (только для режима «Акция»)</label>
+  <input id="${id}-old" name="old_price" type="number" min="0" max="10000000" inputmode="numeric" value="${s?.old_price ?? ''}">
+  <label for="${id}-det">Подробный текст (раскрывается по кнопке «Подробнее», читается поисковиками)</label>
+  <textarea id="${id}-det" name="details" maxlength="6000" style="min-height:220px">${esc(s?.details ?? '')}</textarea>
+  <div class="hint">Абзацы разделяйте пустой строкой. Строки, которые начинаются с «- », станут маркированным списком.</div>
+  <div class="acts" style="margin-top:16px">
+    <button class="abtn gold" type="submit">${s ? 'Сохранить' : 'Добавить услугу'}</button>
+    ${s ? `<button class="abtn sm" type="submit" formaction="/admin/services/${s.id}/move" name="dir" value="up"${i === 0 ? ' disabled' : ''} formnovalidate aria-label="Выше">↑</button>
+    <button class="abtn sm" type="submit" formaction="/admin/services/${s.id}/move" name="dir" value="down"${i === total - 1 ? ' disabled' : ''} formnovalidate aria-label="Ниже">↓</button>
+    <button class="abtn sm danger" type="submit" formaction="/admin/services/${s.id}/delete" formnovalidate onclick="return confirm('Удалить эту услугу?')">Удалить</button>` : ''}
+  </div>
+</form>`;
+}
+
+export function servicesPage(list: Service[], flash?: string): string {
+  return layout('services', 'Услуги и цены', `
+<p class="sub">Эти услуги и цены показываются на главной странице. Подробный текст помогает поиску: в нём стоит перечислить виды ключей, форматы и модели телефонов. Только то, что вы действительно делаете.</p>
+<style>.sel{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:12px;font:inherit}</style>
+${list.map((s, i) => serviceForm(s, i, list.length)).join('')}
+<h2 style="font-size:1.15rem;margin:28px 0 12px">Новая услуга</h2>
+${serviceForm(null, 0, 0)}`, flash);
 }

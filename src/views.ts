@@ -19,7 +19,7 @@ export const esc = (s: string): string =>
 
 export const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
 
-export function shell(title: string, body: string, opts: { noindex?: boolean; desc?: string } = {}): string {
+export function shell(title: string, body: string, opts: { noindex?: boolean; desc?: string; head?: string } = {}): string {
   return `<!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8">
@@ -28,8 +28,74 @@ export function shell(title: string, body: string, opts: { noindex?: boolean; de
 ${opts.desc ? `<meta name="description" content="${esc(opts.desc)}">` : ''}
 ${opts.noindex ? '<meta name="robots" content="noindex,nofollow">' : ''}
 <meta name="theme-color" content="#0a1824">
+${opts.head ?? ''}
 <style>${CSS}</style>
 </head><body>${body}</body></html>`;
+}
+
+
+export interface Service {
+  id: number; label: string; title: string; short: string;
+  price: number | null; mode: 'from' | 'fixed' | 'sale' | 'none'; old_price: number | null; details: string;
+}
+
+/** Текст услуги из админки: пустая строка разделяет абзацы, строки с «- » становятся списком. */
+export function renderDetails(text: string): string {
+  return text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean).map((b) => {
+    const lines = b.split('\n');
+    const items = lines.filter((l) => l.trim().startsWith('- '));
+    if (items.length && items.length >= lines.length - 1) {
+      const head = lines.filter((l) => !l.trim().startsWith('- ')).join(' ');
+      return `${head ? `<p>${esc(head)}</p>` : ''}<ul>${items.map((l) => `<li>${esc(l.trim().slice(2))}</li>`).join('')}</ul>`;
+    }
+    const first = lines.findIndex((l) => l.trim().startsWith('- '));
+    if (first > 0) {
+      return `<p>${esc(lines.slice(0, first).join(' '))}</p><ul>${lines.slice(first).filter((l) => l.trim().startsWith('- ')).map((l) => `<li>${esc(l.trim().slice(2))}</li>`).join('')}</ul>`;
+    }
+    return `<p>${esc(lines.join(' '))}</p>`;
+  }).join('');
+}
+
+export function servicePrice(s: Service): string {
+  if (s.price == null || s.mode === 'none') return '';
+  if (s.mode === 'sale') return `<div class="svc-price">${s.old_price != null && s.old_price > s.price ? `<s>${rub(s.old_price)}</s>` : ''}<small>Акция</small>${rub(s.price)}</div>`;
+  return `<div class="svc-price">${s.mode === 'from' ? '<span>от</span> ' : ''}${rub(s.price)}</div>`;
+}
+
+function serviceRow(s: Service): string {
+  const more = s.details.trim()
+    ? `<details class="svc-more"><summary>Подробнее</summary><div class="svc-text">${renderDetails(s.details)}</div></details>`
+    : '';
+  return `<div class="row svc" id="service-${s.id}"><span class="lbl">${esc(s.label)}</span><div><h3>${esc(s.title)}</h3><p>${esc(s.short)}</p></div>${servicePrice(s)}${more}</div>`;
+}
+
+const DAYS_LD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Разметка schema.org: поисковики показывают адрес, график и цены в выдаче и на карте. */
+function jsonLd(origin: string, contacts: Contacts, hours: Hours, services: Service[]): string {
+  const main = contacts.phones[0];
+  const data = {
+    '@context': 'https://schema.org',
+    '@type': 'Locksmith',
+    name: 'Мастерская «Золотой ключик»',
+    url: origin,
+    ...(main ? { telephone: phoneTel(main) } : {}),
+    address: { '@type': 'PostalAddress', addressLocality: 'Липецк', addressCountry: 'RU', streetAddress: contacts.address },
+    openingHoursSpecification: hours.days
+      .map((d, i) => (d.off ? null : { '@type': 'OpeningHoursSpecification', dayOfWeek: DAYS_LD[i], opens: d.open, closes: d.close }))
+      .filter(Boolean),
+    areaServed: { '@type': 'City', name: 'Липецк' },
+    hasOfferCatalog: {
+      '@type': 'OfferCatalog',
+      name: 'Услуги',
+      itemListElement: services.map((s) => ({
+        '@type': 'Offer',
+        itemOffered: { '@type': 'Service', name: s.title, description: s.short },
+        ...(s.price != null && s.mode !== 'none' ? { priceCurrency: 'RUB', price: s.price } : {}),
+      })),
+    },
+  };
+  return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
 }
 
 function productCard(p: Product): string {
@@ -50,8 +116,8 @@ function videoCard(v: Video, i: number): string {
   return `<div class="vcard"><div class="vbox" data-oid="${esc(v.oid)}" data-vid="${esc(v.vid)}"><button class="vplay" type="button" aria-label="Смотреть видео ${i + 1}">${cover}<i></i></button></div><a class="vlink" href="${esc(v.url)}" target="_blank" rel="noopener">Открыть во ВКонтакте</a></div>`;
 }
 
-export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts }): string {
-  const { products, videos, hours, contacts } = d;
+export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string }): string {
+  const { products, videos, hours, contacts, services, origin } = d;
   const main = contacts.phones[0] ?? '';
   const wa = waNumber(contacts);
   const tg = contacts.telegram.replace(/^@/, '');
@@ -100,11 +166,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
 
   <section><div class="wrap">
     <div class="lbl">Услуги</div><h2>Что мы делаем</h2>
-    <div class="rows">
-      <div class="row"><span class="lbl">Ключи</span><div><h3>Дубликаты ключей</h3><p>Копии ключей от квартиры, замков и почтовых ящиков.</p></div></div>
-      <div class="row"><span class="lbl">Домофон</span><div><h3>Домофонные ключи</h3><p>Копия таблетки для подъезда с записью нужного кода.</p></div></div>
-      <div class="row"><span class="lbl">Телефон</span><div><h3>Наклейка защитной плёнки</h3><p>Ровно, без пузырей, на плёнку или защитное стекло.</p></div></div>
-    </div>
+    <div class="rows">${services.map(serviceRow).join('')}</div>
   </div></section>
 
   <section id="goods" style="padding-top:0"><div class="wrap">
@@ -408,7 +470,12 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   }
 })();
 </script>`;
-  return shell('Мастерская Золотой ключик, Липецк', body, {
-    desc: 'Дубликаты ключей и домофонных ключей, наклейка защитной плёнки, зарядки и USB-шнуры. Липецк.',
-  });
+  const from = services.filter((x) => x.price != null && x.mode !== 'none').map((x) => `${x.title.toLowerCase()} ${x.mode === 'from' ? 'от ' : ''}${x.price} ₽`).join(', ');
+  const desc = `Дубликаты ключей и домофонных ключей, наклейка защитной плёнки на телефон, зарядки и USB-шнуры в Липецке. ${from ? `Цены: ${from}. ` : ''}${contacts.address}.`;
+  const title = 'Дубликаты ключей, домофонные ключи, плёнка на телефон в Липецке | Золотой ключик';
+  const head = `<link rel="canonical" href="${esc(origin)}/">
+<meta property="og:type" content="website"><meta property="og:locale" content="ru_RU">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(origin)}/">
+${jsonLd(origin, contacts, hours, services)}`;
+  return shell(title, body, { desc, head });
 }
