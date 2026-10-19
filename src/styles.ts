@@ -326,5 +326,7 @@ html.vlock{overflow:hidden}
 @media (prefers-reduced-motion:no-preference){
   .rv .reveal{opacity:0;transform:translateY(.9rem);transition:opacity .55s ease,transform .55s ease}
   .rv .reveal.in{opacity:1;transform:none}
+  /* плавная смена дня и ночи (там, где браузер умеет, иначе тема меняется сразу) */
+  ::view-transition-old(root),::view-transition-new(root){animation-duration:.45s}
 }
 `;

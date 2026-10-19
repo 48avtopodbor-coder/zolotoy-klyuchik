@@ -1,3 +1,5 @@
+import type { ThemeCfg } from './theme';
+
 export interface Day { off: boolean; open: string; close: string }
 export interface Hours { days: Day[]; lunch: { on: boolean; from: string; to: string } }
 export interface Contacts { phones: string[]; whatsapp: string; telegram: string; address: string }
@@ -6,6 +8,8 @@ export interface Site {
   hero: { key: string | null; caption: string };
   steps: { t: string; d: string }[];
   ba: { before: string | null; after: string | null; caption: string; ar?: number };
+  /** Когда сайт светлый, а когда тёмный: по солнцу в Липецке, по часам (МСК) или всегда одинаково. */
+  theme: ThemeCfg;
 }
 export interface Settings { hours: Hours; contacts: Contacts; site: Site; pw: string | null; ver: number }
 
@@ -24,6 +28,7 @@ export const DEFAULT_SITE: Site = {
     { t: 'Сделаем, пока ждёте', d: 'Копию делаем при вас, плёнку клеим на ваших глазах.' },
   ],
   ba: { before: null, after: null, caption: 'Защитная плёнка: до и после' },
+  theme: { mode: 'sun', from: '07:00', to: '19:00' },
 };
 export const DEFAULT_CONTACTS: Contacts = {
   phones: ['8 900 596-45-77'],

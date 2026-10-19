@@ -1,4 +1,5 @@
 import { CSS } from './styles';
+import { themeHead } from './theme';
 import { type Contacts, type Hours, type Site, type SpecialDay, addDaysStr, hoursRows, mskToday, phoneTel, specialLine, waNumber } from './settings';
 
 export interface Product {
@@ -482,18 +483,6 @@ ${notice}
   }
   var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;
 
-  /* переключатель светлой и тёмной темы */
-  var tb=document.getElementById('theme-btn');
-  function themeNow(){return document.documentElement.getAttribute('data-theme')==='light'?'light':'dark'}
-  function themeLabel(){tb.setAttribute('aria-label',themeNow()==='light'?'Включить тёмную тему':'Включить светлую тему')}
-  themeLabel();
-  tb.addEventListener('click',function(){
-    var n=themeNow()==='light'?'dark':'light';
-    document.documentElement.setAttribute('data-theme',n);
-    try{localStorage.setItem('theme',n)}catch(e){}
-    themeLabel();
-  });
-
   /* слайдер «до и после» */
   document.querySelectorAll('.ba').forEach(function(b){
     var r=b.querySelector('.ba-range');
@@ -602,7 +591,7 @@ ${notice}
   const from = services.filter((x) => x.price != null && x.mode !== 'none').map((x) => `${x.title.toLowerCase()} ${x.mode === 'from' ? 'от ' : ''}${x.price} ₽`).join(', ');
   const desc = `Дубликаты ключей и домофонных ключей, наклейка защитной плёнки на телефон, зарядки и USB-шнуры в Липецке. ${from ? `Цены: ${from}. ` : ''}${contacts.address}.`;
   const title = 'Дубликаты ключей, домофонные ключи, плёнка на телефон в Липецке | Золотой ключик';
-  const head = `<script>(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.setAttribute('data-theme',t)}catch(e){}})()</script>
+  const head = `${themeHead(site.theme)}
 <meta name="color-scheme" content="dark light">
 <link rel="canonical" href="${esc(origin)}/">
 <meta property="og:type" content="website"><meta property="og:locale" content="ru_RU">

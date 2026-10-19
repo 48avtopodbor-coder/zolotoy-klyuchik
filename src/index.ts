@@ -497,6 +497,13 @@ app.post('/admin/site', async (c) => {
   const cur = c.get('st').site;
   const next: Site = JSON.parse(JSON.stringify(cur));
   const db = c.env.DB;
+
+  const mode = String(f.get('theme_mode') ?? '');
+  if (mode === 'sun' || mode === 'hours' || mode === 'light' || mode === 'dark') next.theme.mode = mode;
+  const from = String(f.get('theme_from') ?? ''), to = String(f.get('theme_to') ?? '');
+  if (TIME_RE.test(from) && TIME_RE.test(to)) { next.theme.from = from; next.theme.to = to; }
+  if (next.theme.mode === 'hours' && next.theme.from >= next.theme.to) return c.text('Светлая тема должна начинаться раньше, чем заканчиваться', 400);
+
   const put = async (name: string): Promise<string | null | 'bad'> => {
     const file = files(f, name)[0];
     if (!file) return null;
