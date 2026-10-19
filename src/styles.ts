@@ -1,6 +1,6 @@
 export const CSS = `
 /* Вариант В: спокойный и аккуратный, синяя «чертёжная» гамма, тонкие линии, профиль ключа как главный образ */
-:root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;--red:#e0382c;--red-hi:#ff5a4d;color-scheme:dark;
+:root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;--red:#e0382c;--red-hi:#ff5a4d;--wa:#25d366;--wa-ink:#05230f;--tg:#2aabee;--tg-ink:#04141c;color-scheme:dark;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;font-size:clamp(1rem,.93rem + .15vw,1.125rem)}
@@ -197,4 +197,28 @@ html.vlock{overflow:hidden}
   .logo:hover b{color:#f2c867}
 }
 .tel:active,.btn:active,.cw-btn:active{transform:translateY(1px) scale(.98)}
+
+/* значки и кнопки мессенджеров в фирменных цветах */
+.ico{width:1.35rem;height:1.35rem;flex:none;vertical-align:middle}
+.ico *{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.btns .btn.gold{gap:.6rem}
+.btns .btn,.btns .split{font-weight:700}
+.split{display:inline-flex;align-items:stretch;min-height:3.125rem;border-radius:.375rem;overflow:hidden;border:1px solid var(--c);text-decoration:none;color:var(--fg)}
+.split.wa{--c:var(--wa);--ink:var(--wa-ink)}
+.split.tg{--c:var(--tg);--ink:var(--tg-ink)}
+.split .tile{display:grid;place-items:center;width:3.125rem;background:var(--c);color:var(--ink)}
+.split .label{display:flex;align-items:center;padding:0 1.15rem;background:rgba(255,255,255,.04)}
+.mlink{display:inline-flex;align-items:center;gap:.5rem}
+.mlink.wa .ico{color:var(--wa)}.mlink.tg .ico{color:var(--tg)}
+.mlink .ico{width:1.2rem;height:1.2rem}
+@media (prefers-reduced-motion:no-preference){.split,.split .label{transition:background-color .18s ease,box-shadow .18s ease,border-color .18s ease}}
+@media (hover:hover){
+  .split:hover{box-shadow:0 0 0 .2rem rgba(255,255,255,.14)}
+  .split:hover{box-shadow:0 0 0 .2rem color-mix(in srgb,var(--c) 28%,transparent)}
+  .split:hover .label{background:rgba(255,255,255,.12)}
+  .split:hover .label{background:color-mix(in srgb,var(--c) 18%,transparent)}
+}
+.split:active{transform:translateY(1px) scale(.98)}
+
+@media (max-width:35rem){.btns .btn.gold,.btns .split{width:100%}.btns .btn.gold{justify-content:center}.split .label{flex:1;justify-content:center;padding:0 1rem}}
 `;

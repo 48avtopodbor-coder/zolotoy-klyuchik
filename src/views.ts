@@ -141,6 +141,11 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   const phonesHtml = contacts.phones.map((p) => `<p><a href="tel:${phoneTel(p)}">${esc(p)}</a></p>`).join('');
 
   const body = `
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-wa" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/><path d="M8.9 8.6c0 3.3 2.7 6 6 6" stroke-width="2.6"/></symbol>
+  <symbol id="i-tg" viewBox="0 0 24 24"><path d="M21.5 3 2.8 10.3l6 2.3 2.3 6.9 3.3-4 5 3.7z"/><path d="M8.8 12.6 21.5 3"/></symbol>
+  <symbol id="i-ph" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+</svg>
 <div class="bar"><div class="wrap">
   <a class="logo" href="#top">Мастерская <b>Золотой ключик</b></a>
   ${main ? `<a class="tel" href="tel:${phoneTel(main)}">${esc(main)}</a>` : ''}
@@ -152,9 +157,9 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
       <h1>Точная копия вашего ключа</h1>
       <p>Дубликаты обычных и домофонных ключей, защитная плёнка для телефона, зарядки и шнуры.</p>
       <div class="btns">
-        ${main ? `<a class="btn gold" href="tel:${phoneTel(main)}">Позвонить</a>` : ''}
-        ${wa ? `<a class="btn" href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
-        ${tg ? `<a class="btn" href="https://t.me/${esc(tg)}" target="_blank" rel="noopener">Telegram</a>` : ''}
+        ${main ? `<a class="btn gold" href="tel:${phoneTel(main)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>Позвонить</a>` : ''}
+        ${wa ? `<a class="split wa" href="https://wa.me/${wa}" target="_blank" rel="noopener"><span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg></span><span class="label">WhatsApp</span></a>` : ''}
+        ${tg ? `<a class="split tg" href="https://t.me/${esc(tg)}" target="_blank" rel="noopener"><span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg></span><span class="label">Telegram</span></a>` : ''}
       </div>
       <div class="state" id="state">${hoursRows(hours).map((r) => `${r.label} ${r.value}`).join(', ')}</div>
     </div>
@@ -202,8 +207,8 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     <div><div class="lbl">График</div>
       <table class="hrs">${hoursRows(hours).map((r) => `<tr><td>${esc(r.label)}</td><td>${esc(r.value)}</td></tr>`).join('')}</table></div>
     <div><div class="lbl">Связь</div>${phonesHtml}
-      ${wa ? `<p><a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a></p>` : ''}
-      ${tg ? `<p><a href="https://t.me/${esc(tg)}" target="_blank" rel="noopener">Telegram: @${esc(tg)}</a></p>` : ''}</div>
+      ${wa ? `<p><a class="mlink wa" href="https://wa.me/${wa}" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>WhatsApp</a></p>` : ''}
+      ${tg ? `<p><a class="mlink tg" href="https://t.me/${esc(tg)}" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg>Telegram: @${esc(tg)}</a></p>` : ''}</div>
   </div>
   <div class="copy">© Мастерская «Золотой ключик», Липецк</div>
 </div></footer>
