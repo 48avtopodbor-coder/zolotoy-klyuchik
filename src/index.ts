@@ -3,11 +3,11 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { makeSession, passwordOk, sessionOk, SESSION_MAX_AGE } from './auth';
 import { adminListPage, homePage, loginPage, productFormPage, type Product } from './views';
 
-type Env = { Bindings: { DB: D1Database; IMAGES: R2Bucket; ADMIN_PASSWORD: string } };
+type Env = { Bindings: { DB: D1Database; ADMIN_PASSWORD: string } };
 
 const app = new Hono<Env>();
 const COOKIE = 'sid';
-const MAX_IMAGE = 3 * 1024 * 1024;
+const MAX_IMAGE = 1024 * 1024; // фото хранятся в D1 (лимит строки 2 МБ, base64 даёт +33%)
 const IMAGE_TYPES: Record<string, string> = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
 const html = (body: string, status: 200 | 401 = 200, cache = 'no-store') =>
@@ -25,14 +25,19 @@ app.get('/', async (c) => {
 app.get('/img/:key', async (c) => {
   const key = c.req.param('key');
   if (!/^[\w-]+\.(webp|jpg|png)$/.test(key)) return c.notFound();
-  const obj = await c.env.IMAGES.get(key);
-  if (!obj) return c.notFound();
-  return new Response(obj.body, {
-    headers: {
-      'content-type': obj.httpMetadata?.contentType ?? 'image/webp',
-      'cache-control': 'public, max-age=31536000, immutable',
-    },
+  const cache = caches.default;
+  const hit = await cache.match(c.req.url);
+  if (hit) return hit;
+  const row = await c.env.DB.prepare('SELECT content_type, data FROM images WHERE key=?').bind(key).first<{ content_type: string; data: string }>();
+  if (!row) return c.notFound();
+  const bin = atob(row.data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const res = new Response(bytes, {
+    headers: { 'content-type': row.content_type, 'cache-control': 'public, max-age=31536000, immutable' },
   });
+  c.executionCtx.waitUntil(cache.put(c.req.url, res.clone()));
+  return res;
 });
 
 app.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /admin\n'));
@@ -95,13 +100,26 @@ function parseFields(form: FormData) {
   return { title, description, price: Number.isFinite(price as number) ? price : null, show_price: form.get('show_price') ? 1 : 0 };
 }
 
+function toBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(out);
+}
+
 async function saveImage(env: Env['Bindings'], file: unknown): Promise<string | null | 'bad'> {
   if (!(file instanceof File) || file.size === 0) return null;
   const ext = IMAGE_TYPES[file.type];
   if (!ext || file.size > MAX_IMAGE) return 'bad';
   const key = `${crypto.randomUUID()}.${ext}`;
-  await env.IMAGES.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  await env.DB.prepare('INSERT INTO images (key, content_type, data) VALUES (?,?,?)')
+    .bind(key, file.type, toBase64(await file.arrayBuffer())).run();
   return key;
+}
+
+async function deleteImage(c: { env: Env['Bindings']; req: { url: string } }, key: string) {
+  await c.env.DB.prepare('DELETE FROM images WHERE key=?').bind(key).run();
+  await caches.default.delete(new URL(`/img/${key}`, c.req.url).toString());
 }
 
 app.post('/admin/products', async (c) => {
@@ -109,7 +127,7 @@ app.post('/admin/products', async (c) => {
   const f = parseFields(form);
   if (!f.title) return c.text('Укажите название', 400);
   const img = await saveImage(c.env, form.get('image'));
-  if (img === 'bad') return c.text('Фото должно быть JPG, PNG или WebP до 3 МБ', 400);
+  if (img === 'bad') return c.text('Фото должно быть JPG, PNG или WebP до 1 МБ', 400);
   await c.env.DB.prepare('INSERT INTO products (title,description,price,show_price,image_key) VALUES (?,?,?,?,?)')
     .bind(f.title, f.description, f.price, f.show_price, img).run();
   return c.redirect('/admin?saved=1');
@@ -123,10 +141,10 @@ app.post('/admin/products/:id', async (c) => {
   const f = parseFields(form);
   if (!f.title) return c.text('Укажите название', 400);
   const img = await saveImage(c.env, form.get('image'));
-  if (img === 'bad') return c.text('Фото должно быть JPG, PNG или WebP до 3 МБ', 400);
+  if (img === 'bad') return c.text('Фото должно быть JPG, PNG или WebP до 1 МБ', 400);
   await c.env.DB.prepare('UPDATE products SET title=?,description=?,price=?,show_price=?,image_key=? WHERE id=?')
     .bind(f.title, f.description, f.price, f.show_price, img ?? old.image_key, id).run();
-  if (img && old.image_key) await c.env.IMAGES.delete(old.image_key);
+  if (img && old.image_key) await deleteImage(c, old.image_key);
   return c.redirect('/admin?saved=1');
 });
 
@@ -135,7 +153,7 @@ app.post('/admin/products/:id/delete', async (c) => {
   const old = await getProduct(c, id);
   if (old) {
     await c.env.DB.prepare('DELETE FROM products WHERE id=?').bind(id).run();
-    if (old.image_key) await c.env.IMAGES.delete(old.image_key);
+    if (old.image_key) await deleteImage(c, old.image_key);
   }
   return c.redirect('/admin?deleted=1');
 });
