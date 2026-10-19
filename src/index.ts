@@ -215,6 +215,9 @@ app.post('/api/chat/send', async (c) => {
   ).bind(ipHash).first<{ n: number }>();
   if ((perIp?.n ?? 0) >= 30) return c.json({ error: 'Слишком много сообщений. Позвоните нам, пожалуйста.' }, 429);
 
+  const banned = await db.prepare('SELECT 1 FROM chats WHERE blocked=1 AND ip_hash=? AND created_at > unixepoch() - 604800').bind(ipHash).first();
+  if (banned) return c.json({ error: 'Чат сейчас недоступен. Позвоните нам, пожалуйста.' }, 403);
+
   let cid = String(b.cid ?? '');
   let chat = /^[0-9a-f]{32}$/.test(cid) ? await db.prepare('SELECT id, name, phone FROM chats WHERE id=?').bind(cid).first<{ id: string; name: string; phone: string }>() : null;
   const first = !chat;
@@ -245,15 +248,25 @@ app.post('/api/chat/send', async (c) => {
   return c.json({ ok: true, cid, id, delivered });
 });
 
+/** «Мастер на связи»: кто-то из сотрудников отвечал в чате за последние 10 минут. */
+async function staffRecent(db: D1Database): Promise<boolean> {
+  const r = await db.prepare('SELECT MAX(created_at) AS m FROM chat_messages WHERE from_visitor=0').first<{ m: number | null }>();
+  return !!r?.m && r.m > Date.now() / 1000 - 600;
+}
+const json = (o: unknown) => new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+
+app.get('/api/chat/status', async (c) => (sameOrigin(c) ? json({ recent: await staffRecent(c.env.DB) }) : c.json({ error: 'forbidden' }, 403)));
+
 app.get('/api/chat/poll', async (c) => {
   if (!sameOrigin(c)) return c.json({ error: 'forbidden' }, 403);
   const cid = c.req.query('cid') ?? '';
-  if (!/^[0-9a-f]{32}$/.test(cid)) return c.json({ messages: [] });
+  const recent = await staffRecent(c.env.DB);
+  if (!/^[0-9a-f]{32}$/.test(cid)) return json({ messages: [], recent });
   const after = Math.max(0, Number(c.req.query('after') ?? 0) || 0);
   const { results } = await c.env.DB.prepare(
     'SELECT id, from_visitor AS v, text, created_at AS t FROM chat_messages WHERE chat_id=? AND id>? ORDER BY id LIMIT 50',
   ).bind(cid, after).all();
-  return new Response(JSON.stringify({ messages: results }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  return json({ messages: results, recent });
 });
 
 /** Сюда Telegram присылает ответы сотрудника. */
@@ -267,7 +280,24 @@ app.post('/api/telegram/webhook', async (c) => {
   if (!m?.text) return c.text('ok');
   if (!tgRecipients(c.env).includes(m.chat.id)) return c.text('ok'); // чужим не отвечаем
   if (m.text.startsWith('/start')) {
-    await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, text: 'Здесь будут сообщения из чата на сайте. Чтобы ответить посетителю, нажмите «Ответить» на его сообщение.' });
+    await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, text: 'Здесь будут сообщения из чата на сайте. Чтобы ответить посетителю, нажмите «Ответить» на его сообщение. Команды в ответе на сообщение: /close завершить диалог, /block заблокировать спамера.' });
+    return c.text('ok');
+  }
+  const cmd = m.text.trim().split(/\s+/)[0].toLowerCase().replace(/@\w+$/, '');
+  if (cmd === '/close' || cmd === '/block') {
+    const lk = m.reply_to_message
+      ? await c.env.DB.prepare('SELECT chat_id FROM tg_map WHERE tg_chat=? AND tg_message=?').bind(m.chat.id, m.reply_to_message.message_id).first<{ chat_id: string }>()
+      : null;
+    if (!lk) {
+      await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, reply_to_message_id: m.message_id, text: 'Нажмите «Ответить» на сообщение посетителя и напишите команду.' });
+      return c.text('ok');
+    }
+    if (cmd === '/close') {
+      await c.env.DB.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text) VALUES (?,0,?)').bind(lk.chat_id, 'Диалог завершён. Если появятся вопросы, напишите нам снова.').run();
+    } else {
+      await c.env.DB.prepare('UPDATE chats SET blocked=1 WHERE id=?').bind(lk.chat_id).run();
+    }
+    await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, reply_to_message_id: m.message_id, text: cmd === '/close' ? 'Диалог закрыт, посетитель увидел сообщение.' : 'Посетитель заблокирован на 7 дней.' });
     return c.text('ok');
   }
   const link = m.reply_to_message
@@ -515,6 +545,23 @@ app.post('/admin/password', async (c) => {
   await saveSetting(c.env.DB, 'session_ver', String(ver));
   await setSession(c, { ...st, ver }); // все остальные входы закрываются, текущий остаётся
   return c.redirect('/admin/password?saved=1');
+});
+
+app.get('/admin/chats', async (c) => {
+  const db = c.env.DB;
+  const { results: list } = await db.prepare(
+    'SELECT c.id, c.name, c.phone, c.blocked, (SELECT MAX(created_at) FROM chat_messages m WHERE m.chat_id=c.id) AS last FROM chats c ORDER BY last DESC LIMIT 40',
+  ).all<A.ChatRow>();
+  const ids = list.map((x) => x.id);
+  const msgs = ids.length
+    ? (await db.prepare(`SELECT chat_id, from_visitor AS v, text, created_at AS t FROM chat_messages WHERE chat_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`).bind(...ids).all<A.ChatMsg>()).results
+    : [];
+  return c.html(A.chatsPage(list, msgs, A.flashText(q(c))));
+});
+app.post('/admin/chats/:id/delete', async (c) => {
+  const id = c.req.param('id');
+  await c.env.DB.batch([c.env.DB.prepare('DELETE FROM chat_messages WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM tg_map WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM chats WHERE id=?').bind(id)]);
+  return c.redirect('/admin/chats?deleted=1');
 });
 
 /* ---------- заявки ---------- */

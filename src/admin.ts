@@ -13,6 +13,7 @@ const TABS: [string, string, string][] = [
   ['videos', 'Видео', '/admin/videos'],
   ['hours', 'Часы работы', '/admin/hours'],
   ['contacts', 'Контакты', '/admin/contacts'],
+  ['chats', 'Чаты', '/admin/chats'],
   ['leads', 'Заявки', '/admin/leads'],
   ['password', 'Пароль', '/admin/password'],
 ];
@@ -279,4 +280,21 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 <form class="card" method="post" action="/admin/telegram/setup"><b>Чат с сайта в Telegram</b>
 <p class="hint">Нажмите один раз, чтобы ответы из Telegram доходили до посетителей. Повторять нужно только если меняли бота.</p>
 <button class="abtn sm" type="submit">Подключить чат к Telegram</button></form>`, flash);
+}
+
+export interface ChatRow { id: string; name: string; phone: string; blocked: number; last: number | null }
+export interface ChatMsg { chat_id: string; v: number; text: string; t: number }
+
+export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): string {
+  const fmt = (t: number) => new Date((t + 3 * 3600) * 1000).toISOString().slice(0, 16).replace('T', ' ');
+  const rows = list.length ? list.map((ch) => {
+    const mine = msgs.filter((m) => m.chat_id === ch.id);
+    const who = [ch.name, ch.phone].filter(Boolean).map(esc).join(' · ') || 'Без имени';
+    return `<details class="chat-item"><summary><b>${who}</b> <span class="meta">#${ch.id.slice(0, 4)} · ${ch.last ? fmt(ch.last) + ' (МСК)' : ''} · сообщений: ${mine.length}${ch.blocked ? ' · <span style="color:#ff9b8a">заблокирован</span>' : ''}</span></summary>
+<div class="chat-log">${mine.map((m) => `<div class="cm ${m.v ? 'v' : 's'}"><small>${m.v ? 'Посетитель' : 'Мастер'} · ${fmt(m.t)}</small><div>${esc(m.text)}</div></div>`).join('')}</div>
+<form method="post" action="/admin/chats/${ch.id}/delete" onsubmit="return confirm('Удалить эту переписку?')"><button class="abtn sm danger" type="submit">Удалить переписку</button></form></details>`;
+  }).join('') : '<p class="hint">Переписок пока нет.</p>';
+  return layout('chats', 'Чаты', `<p class="sub">Переписки с посетителями через чат на сайте. Отвечать нужно в Telegram, нажав «Ответить» на сообщение. Переписки старше 30 дней удаляются сами.</p>
+<style>.chat-item{border-top:1px solid var(--line);padding:12px 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.chat-log{display:flex;flex-direction:column;gap:8px;margin:12px 0}.cm{max-width:88%;padding:8px 12px;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
+<div class="card">${rows}</div>`, flash);
 }

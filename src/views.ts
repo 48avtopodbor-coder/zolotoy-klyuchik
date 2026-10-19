@@ -149,7 +149,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   <span class="cw-label">Напишите нам</span><i class="cw-dot" id="cw-dot" hidden></i>
 </button>
 <section class="cw-panel" id="cw-panel" hidden aria-label="Чат с мастерской">
-  <header><div><b>Золотой ключик</b><small id="cw-sub">Ответим в рабочее время</small></div><button type="button" id="cw-close" aria-label="Закрыть чат">×</button></header>
+  <header><div><b>Золотой ключик</b><small id="cw-sub">Отвечаем в рабочее время</small></div><button type="button" id="cw-close" aria-label="Закрыть чат">×</button></header>
   <div class="cw-log" id="cw-log" role="log" aria-live="polite"></div>
   <details class="cw-who" id="cw-who"><summary>Оставить имя и телефон (по желанию)</summary>
     <input id="cw-name" type="text" placeholder="Ваше имя" maxlength="80" autocomplete="name">
@@ -160,34 +160,82 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     <button type="submit" aria-label="Отправить">➤</button>
   </form>
 </section>
+<script type="application/json" id="cw-data">${JSON.stringify({
+    hours: hoursRows(hours),
+    address: contacts.address,
+    ya: `https://yandex.ru/maps/?text=${mapQ}`,
+    gis: `https://2gis.ru/lipetsk/search/${mapQ}`,
+  }).replace(/</g, '\\u003c')}</script>
 <script>
 (function(){
-  var btn=document.getElementById('cw-btn'),panel=document.getElementById('cw-panel'),log=document.getElementById('cw-log'),
-      form=document.getElementById('cw-form'),text=document.getElementById('cw-text'),dot=document.getElementById('cw-dot'),
-      sub=document.getElementById('cw-sub'),seen={},lastId=0,cid=null,timer=null,lastAct=0,openP=false;
+  var D=JSON.parse(document.getElementById('cw-data').textContent);
+  var $=function(id){return document.getElementById(id)};
+  var btn=$('cw-btn'),panel=$('cw-panel'),log=$('cw-log'),form=$('cw-form'),text=$('cw-text'),dot=$('cw-dot'),sub=$('cw-sub'),
+      who=$('cw-who'),nameI=$('cw-name'),phoneI=$('cw-phone');
+  var seen={},lastId=0,cid=null,timer=null,lastAct=0,openP=false,unread=0,recent=false,waiting=false,hinted=false,hintTimer=null,
+      chips=null,baseTitle=document.title;
   try{cid=localStorage.getItem('cw_cid')}catch(e){}
   try{lastAct=+localStorage.getItem('cw_act')||0}catch(e){}
   function save(){try{localStorage.setItem('cw_cid',cid);localStorage.setItem('cw_act',String(lastAct))}catch(e){}}
-  function bubble(m){
-    if(seen[m.id])return;seen[m.id]=1;if(m.id>lastId&&!m.local)lastId=Math.max(lastId,m.id);
-    var d=document.createElement('div');d.className='cw-msg '+(m.v?'me':'them');d.textContent=m.text;log.appendChild(d);
-    log.scrollTop=log.scrollHeight;
+  function el(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n}
+  function scroll(){log.scrollTop=log.scrollHeight}
+
+  /* статус в шапке: «на связи» только если сейчас рабочее время и мастер недавно отвечал */
+  function setStatus(){
+    var on=window.__open&&recent;
+    sub.textContent=on?'● Мастер на связи':(window.__open?'Отвечаем в рабочее время':'Сейчас не на связи, ответим в рабочее время');
+    sub.className=on?'on':'';
   }
+  function bubble(m){
+    if(seen[m.id])return;seen[m.id]=1;
+    var d=el('div','cw-msg '+(m.v?'me':'them'));
+    if(!m.v)d.appendChild(el('span','cw-from','Мастер'));
+    d.appendChild(el('span','',m.text));
+    if(m.tick){var k=el('span','cw-tick','✓');k.title='Доставлено мастеру';d.appendChild(k)}
+    log.appendChild(d);scroll();
+  }
+  function note(txt,links){
+    var d=el('div','cw-msg them auto');d.appendChild(el('span','cw-from','Подсказка'));
+    d.appendChild(el('span','',txt));
+    (links||[]).forEach(function(l){var a=el('a','cw-link',l[0]);a.href=l[1];a.target='_blank';a.rel='noopener';d.appendChild(a)});
+    log.appendChild(d);scroll();
+  }
+  function problem(txt){log.appendChild(el('div','cw-msg err',txt));scroll()}
+
   function hello(){
-    var d=document.createElement('div');d.className='cw-msg them';
-    d.textContent=window.__open?'Здравствуйте! Напишите, чем помочь.':'Здравствуйте! Сейчас мы не на связи. Оставьте сообщение и номер телефона, ответим в рабочее время.';
+    var d=el('div','cw-msg them auto');d.appendChild(el('span','cw-from','Подсказка'));
+    d.appendChild(el('span','',window.__open?'Здравствуйте! Напишите, чем помочь, или выберите вопрос ниже.':'Здравствуйте! Сейчас мы не на связи. Оставьте сообщение и номер телефона, ответим в рабочее время.'));
     log.appendChild(d);
+    chips=el('div','cw-chips');
+    [['Сколько стоит дубликат ключа?','send'],['График работы','hours'],['Как добраться','way']].forEach(function(c){
+      var b=el('button','',c[0]);b.type='button';
+      b.addEventListener('click',function(){
+        removeChips();
+        if(c[1]==='send'){text.value=c[0];form.requestSubmit()}
+        else if(c[1]==='hours')note(D.hours.map(function(r){return r.label+': '+r.value}).join('\\n'));
+        else note(D.address,[['Маршрут в Яндекс Картах',D.ya],['Открыть в 2ГИС',D.gis]]);
+      });
+      chips.appendChild(b);
+    });
+    log.appendChild(chips);scroll();
+  }
+  function removeChips(){if(chips){chips.remove();chips=null}}
+
+  function applyMessages(j){
+    recent=!!j.recent;setStatus();
+    var staff=false;
+    (j.messages||[]).forEach(function(m){
+      if(!seen[m.id]){bubble(m);if(!m.v)staff=true}
+      if(m.id>lastId)lastId=m.id;
+    });
+    if(staff){
+      waiting=false;clearTimeout(hintTimer);
+      if(!openP||document.hidden){unread++;document.title='('+unread+') Новое сообщение';if(!openP)dot.hidden=false}
+    }
   }
   function poll(){
-    if(!cid)return;
-    fetch('/api/chat/poll?cid='+cid+'&after='+lastId,{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
-      var gotNew=false;
-      (j.messages||[]).forEach(function(m){
-        if(!seen[m.id]){bubble(m);if(!m.v)gotNew=true}
-        if(m.id>lastId)lastId=m.id;
-      });
-      if(gotNew&&!openP){dot.hidden=false}
-    }).catch(function(){});
+    var url=cid?'/api/chat/poll?cid='+cid+'&after='+lastId:'/api/chat/status';
+    fetch(url,{cache:'no-store'}).then(function(r){return r.json()}).then(applyMessages).catch(function(){});
   }
   function schedule(){
     clearInterval(timer);
@@ -196,40 +244,58 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     if(openP&&idle<15*60e3)timer=setInterval(function(){if(!document.hidden)poll()},4000);
     else if(!openP&&idle<30*60e3)timer=setInterval(function(){if(!document.hidden)poll()},15000);
   }
+  function resetTitle(){unread=0;document.title=baseTitle}
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&openP)resetTitle()});
+
   function open(){
-    openP=true;panel.hidden=false;btn.setAttribute('aria-expanded','true');dot.hidden=true;btn.classList.add('cw-hide');
+    openP=true;panel.hidden=false;btn.setAttribute('aria-expanded','true');dot.hidden=true;btn.classList.add('cw-hide');resetTitle();
     if(!log.children.length)hello();
-    if(cid)poll();
-    schedule();setTimeout(function(){text.focus()},50);
+    setStatus();poll();schedule();setTimeout(function(){text.focus()},50);
   }
   function close(){openP=false;panel.hidden=true;btn.setAttribute('aria-expanded','false');btn.classList.remove('cw-hide');schedule();btn.focus()}
   btn.addEventListener('click',open);
-  document.getElementById('cw-close').addEventListener('click',close);
+  $('cw-close').addEventListener('click',close);
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openP)close()});
   text.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
   text.addEventListener('input',function(){text.style.height='auto';text.style.height=Math.min(text.scrollHeight,110)+'px'});
+
+  /* если мастер не ответил за 2,5 минуты, предлагаем оставить телефон */
+  function armHint(){
+    clearTimeout(hintTimer);waiting=true;
+    if(hinted)return;
+    if(!window.__open){
+      hinted=true;
+      note('Сейчас мы не на связи, ответим в рабочее время.'+(phoneI.value?'':' Оставьте телефон, чтобы мы могли перезвонить.'));
+      if(!phoneI.value)who.open=true;
+      return;
+    }
+    hintTimer=setTimeout(function(){
+      if(!waiting||hinted)return;hinted=true;
+      note('Мастер увидит сообщение и ответит, как освободится.'+(phoneI.value?'':' Оставьте телефон, и мы перезвоним.'));
+      if(!phoneI.value)who.open=true;
+    },150000);
+  }
+
   form.addEventListener('submit',function(e){
     e.preventDefault();
     var t=text.value.trim();if(!t)return;
-    var sendBtn=form.querySelector('button');sendBtn.disabled=true;
-    fetch('/api/chat/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
-      cid:cid,text:t,name:document.getElementById('cw-name').value,phone:document.getElementById('cw-phone').value})})
+    var sendBtn=form.querySelector('button');sendBtn.disabled=true;removeChips();
+    fetch('/api/chat/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cid:cid,text:t,name:nameI.value,phone:phoneI.value})})
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
     .then(function(x){
-      if(!x.ok){var d=document.createElement('div');d.className='cw-msg err';d.textContent=x.j.error||'Не удалось отправить. Позвоните нам.';log.appendChild(d);log.scrollTop=log.scrollHeight;return}
+      if(!x.ok){problem(x.j.error||'Не удалось отправить. Позвоните нам.');return}
       cid=x.j.cid;lastAct=Date.now();save();
-      bubble({id:x.j.id,v:1,text:t,local:1});text.value='';text.style.height='auto';
-      if(!x.j.delivered){var d=document.createElement('div');d.className='cw-msg err';d.textContent='Сообщение сохранено, но пока не дошло до мастера. Позвоните нам, пожалуйста.';log.appendChild(d)}
-      var who=document.getElementById('cw-who');if(who)who.open=false;
-      schedule();
+      bubble({id:x.j.id,v:1,text:t,tick:x.j.delivered});text.value='';text.style.height='auto';
+      if(!x.j.delivered)problem('Сообщение сохранено, но пока не дошло до мастера. Позвоните нам, пожалуйста.');
+      if(phoneI.value)who.open=false;
+      armHint();schedule();
     })
-    .catch(function(){var d=document.createElement('div');d.className='cw-msg err';d.textContent='Нет связи. Проверьте интернет или позвоните нам.';log.appendChild(d)})
+    .catch(function(){problem('Нет связи. Проверьте интернет или позвоните нам.')})
     .then(function(){sendBtn.disabled=false;text.focus()});
   });
   if(cid&&Date.now()-lastAct<30*60e3){schedule();poll()}
 })();
 </script>
-
 <script type="application/json" id="hours-data">${hoursJson}</script>
 <script>
 (function(){

@@ -137,4 +137,13 @@ html.vlock{overflow:hidden}
 .cw-form button{flex:none;width:46px;height:44px;border-radius:8px;border:0;background:var(--gold);color:var(--gold-ink);font-size:1.15rem;cursor:pointer}
 .cw-form button:disabled{opacity:.6}
 @media (max-width:520px){.cw-panel{right:0;bottom:0;width:100vw;height:min(560px,88dvh);border-radius:14px 14px 0 0}}
+
+.cw-panel header small.on{color:#7fe0a2}
+.cw-from{display:block;font:700 .68rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:2px}
+.cw-msg.auto .cw-from{color:var(--muted)}
+.cw-tick{margin-left:8px;font-size:.78rem;opacity:.7;float:right;padding-top:3px}
+.cw-link{display:block;color:var(--gold);margin-top:6px;text-underline-offset:3px}
+.cw-chips{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start}
+.cw-chips button{border:1px solid var(--gold);background:none;color:var(--gold);border-radius:99px;padding:8px 14px;font:inherit;font-size:.88rem;cursor:pointer}
+.cw-chips button:hover{background:rgba(226,180,79,.12)}
 `;
