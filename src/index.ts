@@ -208,6 +208,46 @@ async function tgCall<T = unknown>(env: Bind, method: string, body: unknown): Pr
   } catch { return null; }
 }
 
+/** Фото в чате: настоящий формат определяем по первым байтам, а не по тому, что заявил браузер. */
+function sniffChatImage(b: Uint8Array): 'image/jpeg' | 'image/png' | null {
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png';
+  return null;
+}
+const MAX_CHAT_PHOTO = 900 * 1000; // страница сама сжимает фото до 200–400 КБ, больше не принимаем
+
+function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Отдаёт фото из чата. Кэш только личный: фото видят автор переписки и сотрудники. */
+const chatPhotoResponse = (b64: string) => {
+  const bytes = fromBase64(b64);
+  return new Response(bytes, {
+    headers: {
+      'content-type': sniffChatImage(bytes) ?? 'application/octet-stream', 'cache-control': 'private, max-age=86400',
+      'x-content-type-options': 'nosniff', 'content-disposition': 'inline', 'referrer-policy': 'no-referrer',
+    },
+  });
+};
+
+async function tgSendPhoto(env: Bind, to: number, buf: ArrayBuffer, mime: string, caption: string): Promise<{ message_id: number } | null> {
+  if (!env.TELEGRAM_BOT_TOKEN) return null;
+  try {
+    const fd = new FormData();
+    fd.append('chat_id', String(to));
+    fd.append('caption', caption);
+    fd.append('parse_mode', 'HTML');
+    fd.append('photo', new Blob([buf], { type: mime }), mime === 'image/png' ? 'photo.png' : 'photo.jpg');
+    const r = await fetch(`${tgApi(env)}/bot${env.TELEGRAM_BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+    const j = (await r.json()) as { ok: boolean; result: { message_id: number } };
+    return j.ok ? j.result : null;
+  } catch { return null; }
+}
+
 const sameOrigin = (c: C) => {
   const o = c.req.header('origin');
   return !o || new URL(o).host === new URL(c.req.url).host;
@@ -215,19 +255,42 @@ const sameOrigin = (c: C) => {
 
 app.post('/api/chat/send', async (c) => {
   if (!sameOrigin(c)) return c.json({ error: 'forbidden' }, 403);
-  let b: Record<string, unknown>;
-  try { b = await c.req.json(); } catch { return c.json({ error: 'Некорректный запрос' }, 400); }
+  let b: Record<string, unknown> = {};
+  let photo: File | null = null;
+  try {
+    if ((c.req.header('content-type') ?? '').startsWith('multipart/form-data')) {
+      const f = await c.req.formData();
+      for (const k of ['cid', 'text', 'name', 'phone']) b[k] = f.get(k) ?? '';
+      const p = f.get('photo');
+      if (p && typeof p !== 'string' && p.size > 0) photo = p;
+    } else b = await c.req.json();
+  } catch { return c.json({ error: 'Некорректный запрос' }, 400); }
   const text = String(b.text ?? '').trim().slice(0, 1000);
-  if (!text) return c.json({ error: 'Напишите сообщение' }, 400);
+  if (!text && !photo) return c.json({ error: 'Напишите сообщение или приложите фото' }, 400);
   const name = String(b.name ?? '').trim().slice(0, 80);
   const phone = String(b.phone ?? '').trim().slice(0, 30);
   const db = c.env.DB;
+
+  let pic: { buf: ArrayBuffer; mime: 'image/jpeg' | 'image/png' } | null = null;
+  if (photo) {
+    if (photo.size > MAX_CHAT_PHOTO) return c.json({ error: 'Фото слишком большое. Попробуйте другое или позвоните нам.' }, 413);
+    const buf = await photo.arrayBuffer();
+    const mime = sniffChatImage(new Uint8Array(buf));
+    if (!mime) return c.json({ error: 'Фото должно быть в формате JPG или PNG' }, 400);
+    pic = { buf, mime };
+  }
   const ipHash = await hashIp(c.req.header('cf-connecting-ip') ?? 'unknown');
 
   const perIp = await db.prepare(
     'SELECT COUNT(*) AS n FROM chat_messages m JOIN chats ch ON ch.id = m.chat_id WHERE ch.ip_hash=? AND m.from_visitor=1 AND m.created_at > unixepoch() - 3600',
   ).bind(ipHash).first<{ n: number }>();
   if ((perIp?.n ?? 0) >= 30) return c.json({ error: 'Слишком много сообщений. Позвоните нам, пожалуйста.' }, 429);
+  if (pic) {
+    const perIpPhotos = await db.prepare(
+      'SELECT COUNT(*) AS n FROM chat_messages m JOIN chats ch ON ch.id = m.chat_id WHERE ch.ip_hash=? AND m.photo IS NOT NULL AND m.created_at > unixepoch() - 3600',
+    ).bind(ipHash).first<{ n: number }>();
+    if ((perIpPhotos?.n ?? 0) >= 8) return c.json({ error: 'Слишком много фото за час. Позвоните нам, пожалуйста.' }, 429);
+  }
 
   const banned = await db.prepare('SELECT 1 FROM chats WHERE blocked=1 AND ip_hash=? AND created_at > unixepoch() - 604800').bind(ipHash).first();
   if (banned) return c.json({ error: 'Чат сейчас недоступен. Позвоните нам, пожалуйста.' }, 403);
@@ -245,18 +308,42 @@ app.post('/api/chat/send', async (c) => {
     await db.prepare('UPDATE chats SET name=?, phone=? WHERE id=?').bind(chat.name, chat.phone, cid).run();
   }
 
-  const ins = await db.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text) VALUES (?,1,?)').bind(cid, text).run();
+  let photoKey: string | null = null;
+  if (pic) {
+    photoKey = crypto.randomUUID();
+    await db.batch([
+      db.prepare('INSERT INTO chat_photos (key, chat_id, data) VALUES (?,?,?)').bind(photoKey, cid, toBase64(pic.buf)),
+      db.prepare('DELETE FROM chat_photos WHERE created_at < unixepoch() - 2592000'), // фото старше 30 дней не храним
+      db.prepare('DELETE FROM chat_photos WHERE key IN (SELECT key FROM chat_photos ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET 300)'), // и не больше 300 штук
+    ]);
+  }
+  const ins = await db.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text, photo) VALUES (?,1,?,?)').bind(cid, text, photoKey).run();
   const id = ins.meta.last_row_id as number;
 
   const who = [chat.name, chat.phone].filter(Boolean).map(escHtml).join(' · ');
-  const head = first || who ? `💬 <b>Чат с сайта</b> #${cid.slice(0, 4)}${who ? `\n${who}` : ''}\n\n` : `💬 #${cid.slice(0, 4)}\n`;
-  const msg = `${head}${escHtml(text)}${first ? '\n\n<i>Чтобы ответить, нажмите «Ответить» на это сообщение.</i>' : ''}`;
+  const icon = pic ? '📷' : '💬';
+  const head = first || who ? `${icon} <b>Чат с сайта</b> #${cid.slice(0, 4)}${who ? `\n${who}` : ''}\n\n` : `${icon} #${cid.slice(0, 4)}\n`;
+  const tail = first ? '\n\n<i>Чтобы ответить, нажмите «Ответить» на это сообщение.</i>' : '';
+  const msg = `${head}${escHtml(text)}${tail}`;
   let delivered = false;
+  const remember = (to: number, mid: number) => db.prepare('INSERT OR REPLACE INTO tg_map (tg_chat, tg_message, chat_id) VALUES (?,?,?)').bind(to, mid, cid).run();
   for (const to of tgRecipients(c.env)) {
-    const r = await tgCall<{ message_id: number }>(c.env, 'sendMessage', { chat_id: to, text: msg, parse_mode: 'HTML', disable_web_page_preview: true });
+    let r: { message_id: number } | null = null;
+    if (pic) {
+      // подпись к фото у Telegram ограничена 1024 символами: длинный текст уходит вторым сообщением
+      const long = msg.length > 1000;
+      r = await tgSendPhoto(c.env, to, pic.buf, pic.mime, long ? `${head}<i>Текст сообщения ниже.</i>${tail}` : msg);
+      if (r && long) {
+        const t2 = await tgCall<{ message_id: number }>(c.env, 'sendMessage', { chat_id: to, text: escHtml(text), parse_mode: 'HTML', reply_to_message_id: r.message_id });
+        if (t2) await remember(to, t2.message_id);
+      }
+      if (!r) r = await tgCall<{ message_id: number }>(c.env, 'sendMessage', { chat_id: to, text: `${msg}\n\n<i>📷 Фото не удалось передать в Telegram. Оно сохранено на сайте: админка, вкладка «Чаты».</i>`, parse_mode: 'HTML', disable_web_page_preview: true });
+    } else {
+      r = await tgCall<{ message_id: number }>(c.env, 'sendMessage', { chat_id: to, text: msg, parse_mode: 'HTML', disable_web_page_preview: true });
+    }
     if (r) {
       delivered = true;
-      await db.prepare('INSERT OR REPLACE INTO tg_map (tg_chat, tg_message, chat_id) VALUES (?,?,?)').bind(to, r.message_id, cid).run();
+      await remember(to, r.message_id);
     }
   }
   return c.json({ ok: true, cid, id, delivered });
@@ -278,9 +365,17 @@ app.get('/api/chat/poll', async (c) => {
   if (!/^[0-9a-f]{32}$/.test(cid)) return json({ messages: [], recent });
   const after = Math.max(0, Number(c.req.query('after') ?? 0) || 0);
   const { results } = await c.env.DB.prepare(
-    'SELECT id, from_visitor AS v, text, created_at AS t FROM chat_messages WHERE chat_id=? AND id>? ORDER BY id LIMIT 50',
+    'SELECT id, from_visitor AS v, text, created_at AS t, photo AS p FROM chat_messages WHERE chat_id=? AND id>? ORDER BY id LIMIT 50',
   ).bind(cid, after).all();
   return json({ messages: results, recent });
+});
+
+/** Фото из переписки видит только её автор: ссылка работает вместе с секретным номером переписки. */
+app.get('/api/chat/photo/:key', async (c) => {
+  const key = c.req.param('key'), cid = c.req.query('cid') ?? '';
+  if (!/^[0-9a-f-]{36}$/.test(key) || !/^[0-9a-f]{32}$/.test(cid)) return c.notFound();
+  const row = await c.env.DB.prepare('SELECT data FROM chat_photos WHERE key=? AND chat_id=?').bind(key, cid).first<{ data: string }>();
+  return row ? chatPhotoResponse(row.data) : c.notFound();
 });
 
 /** Сюда Telegram присылает ответы сотрудника. */
@@ -288,11 +383,18 @@ app.post('/api/telegram/webhook', async (c) => {
   const secret = c.env.TELEGRAM_WEBHOOK_SECRET;
   if (!secret || c.req.header('x-telegram-bot-api-secret-token') !== secret) return c.text('forbidden', 403);
   const upd = (await c.req.json().catch(() => null)) as {
-    message?: { message_id: number; text?: string; chat: { id: number }; reply_to_message?: { message_id: number } };
+    message?: { message_id: number; text?: string; caption?: string; photo?: unknown[]; chat: { id: number }; reply_to_message?: { message_id: number } };
   } | null;
-  const m = upd?.message;
-  if (!m?.text) return c.text('ok');
-  if (!tgRecipients(c.env).includes(m.chat.id)) return c.text('ok'); // чужим не отвечаем
+  const m0 = upd?.message;
+  if (!m0) return c.text('ok');
+  if (!tgRecipients(c.env).includes(m0.chat.id)) return c.text('ok'); // чужим не отвечаем
+  const body = m0.text ?? m0.caption;
+  if (!body) {
+    // фото и файлы без подписи на сайт не передаются: подсказываем, чтобы ответ не потерялся молча
+    if (m0.photo) await tgCall(c.env, 'sendMessage', { chat_id: m0.chat.id, reply_to_message_id: m0.message_id, text: 'Фото на сайт пока не передаётся. Напишите ответ текстом.' });
+    return c.text('ok');
+  }
+  const m = { ...m0, text: body };
   if (m.text.startsWith('/start')) {
     await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, text: 'Здесь будут сообщения из чата на сайте. Чтобы ответить посетителю, нажмите «Ответить» на его сообщение. Команды в ответе на сообщение: /close завершить диалог, /block заблокировать спамера.' });
     return c.text('ok');
@@ -322,7 +424,8 @@ app.post('/api/telegram/webhook', async (c) => {
     return c.text('ok');
   }
   await c.env.DB.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text) VALUES (?,0,?)').bind(link.chat_id, m.text.slice(0, 2000)).run();
-  await tgCall(c.env, 'setMessageReaction', { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: 'emoji', emoji: '👍' }] });
+  if (m0.photo) await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, reply_to_message_id: m.message_id, text: 'Посетитель увидел только подпись: фото на сайт пока не передаётся.' });
+  else await tgCall(c.env, 'setMessageReaction', { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: 'emoji', emoji: '👍' }] });
   return c.text('ok');
 });
 
@@ -729,13 +832,19 @@ app.get('/admin/chats', async (c) => {
   ).all<A.ChatRow>();
   const ids = list.map((x) => x.id);
   const msgs = ids.length
-    ? (await db.prepare(`SELECT chat_id, from_visitor AS v, text, created_at AS t FROM chat_messages WHERE chat_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`).bind(...ids).all<A.ChatMsg>()).results
+    ? (await db.prepare(`SELECT chat_id, from_visitor AS v, text, created_at AS t, photo AS p FROM chat_messages WHERE chat_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`).bind(...ids).all<A.ChatMsg>()).results
     : [];
   return c.html(A.chatsPage(list, msgs, A.flashText(q(c))));
 });
+app.get('/admin/chat-photo/:key', async (c) => {
+  const key = c.req.param('key');
+  if (!/^[0-9a-f-]{36}$/.test(key)) return c.notFound();
+  const row = await c.env.DB.prepare('SELECT data FROM chat_photos WHERE key=?').bind(key).first<{ data: string }>();
+  return row ? chatPhotoResponse(row.data) : c.notFound();
+});
 app.post('/admin/chats/:id/delete', async (c) => {
   const id = c.req.param('id');
-  await c.env.DB.batch([c.env.DB.prepare('DELETE FROM chat_messages WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM tg_map WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM chats WHERE id=?').bind(id)]);
+  await c.env.DB.batch([c.env.DB.prepare('DELETE FROM chat_messages WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM chat_photos WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM tg_map WHERE chat_id=?').bind(id), c.env.DB.prepare('DELETE FROM chats WHERE id=?').bind(id)]);
   return c.redirect('/admin/chats?deleted=1');
 });
 

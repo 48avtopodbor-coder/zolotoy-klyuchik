@@ -323,7 +323,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 }
 
 export interface ChatRow { id: string; name: string; phone: string; blocked: number; last: number | null }
-export interface ChatMsg { chat_id: string; v: number; text: string; t: number }
+export interface ChatMsg { chat_id: string; v: number; text: string; t: number; p: string | null }
 
 export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): string {
   const fmt = (t: number) => new Date((t + 3 * 3600) * 1000).toISOString().slice(0, 16).replace('T', ' ');
@@ -331,11 +331,11 @@ export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): str
     const mine = msgs.filter((m) => m.chat_id === ch.id);
     const who = [ch.name, ch.phone].filter(Boolean).map(esc).join(' · ') || 'Без имени';
     return `<details class="chat-item"><summary><b>${who}</b> <span class="meta">#${ch.id.slice(0, 4)} · ${ch.last ? fmt(ch.last) + ' (МСК)' : ''} · сообщений: ${mine.length}${ch.blocked ? ' · <span style="color:#ff9b8a">заблокирован</span>' : ''}</span></summary>
-<div class="chat-log">${mine.map((m) => `<div class="cm ${m.v ? 'v' : 's'}"><small>${m.v ? 'Посетитель' : 'Мастер'} · ${fmt(m.t)}</small><div>${esc(m.text)}</div></div>`).join('')}</div>
+<div class="chat-log">${mine.map((m) => `<div class="cm ${m.v ? 'v' : 's'}"><small>${m.v ? 'Посетитель' : 'Мастер'} · ${fmt(m.t)}</small>${m.p ? `<a href="/admin/chat-photo/${esc(m.p)}" target="_blank" rel="noopener"><img class="cph" src="/admin/chat-photo/${esc(m.p)}" alt="Фото от посетителя" loading="lazy" onerror="this.replaceWith(document.createTextNode('[фото уже удалено]'))"></a>` : ''}${m.text ? `<div>${esc(m.text)}</div>` : ''}</div>`).join('')}</div>
 <form method="post" action="/admin/chats/${ch.id}/delete" onsubmit="return confirm('Удалить эту переписку?')"><button class="abtn sm danger" type="submit">Удалить переписку</button></form></details>`;
   }).join('') : '<p class="hint">Переписок пока нет.</p>';
   return layout('chats', 'Чаты', `<p class="sub">Переписки с посетителями через чат на сайте. Отвечать нужно в Telegram, нажав «Ответить» на сообщение. Переписки старше 30 дней удаляются сами.</p>
-<style>.chat-item{border-top:1px solid var(--line);padding:0.75rem 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.chat-log{display:flex;flex-direction:column;gap:0.5rem;margin:0.75rem 0}.cm{max-width:88%;padding:0.5rem 0.75rem;border-radius:0.625rem;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
+<style>.chat-item{border-top:1px solid var(--line);padding:0.75rem 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.cph{display:block;max-width:100%;max-height:14rem;border-radius:.375rem;margin:.25rem 0;border:1px solid var(--line)}.chat-log{display:flex;flex-direction:column;gap:0.5rem;margin:0.75rem 0}.cm{max-width:88%;padding:0.5rem 0.75rem;border-radius:0.625rem;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
 <div class="card">${rows}</div>`, flash);
 }
 

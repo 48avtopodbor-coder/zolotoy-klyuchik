@@ -215,6 +215,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2z"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.6"/></symbol>
   <symbol id="i-ph" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
 </svg>
 <div class="bar"><div class="wrap">
@@ -296,7 +297,14 @@ ${notice}
     <input id="cw-name" type="text" placeholder="Ваше имя" maxlength="80" autocomplete="name">
     <input id="cw-phone" type="tel" placeholder="Телефон, чтобы мы могли перезвонить" maxlength="30" autocomplete="tel" inputmode="tel">
   </details>
+  <div class="cw-attach" id="cw-attach" hidden>
+    <img id="cw-prev" alt="Выбранное фото" hidden>
+    <span id="cw-pinfo" role="status"></span>
+    <button type="button" id="cw-pdel" aria-label="Убрать фото">×</button>
+  </div>
   <form class="cw-form" id="cw-form">
+    <button type="button" class="cw-clip" id="cw-clip" aria-label="Прикрепить фото" title="Прикрепить фото"><svg class="ico" aria-hidden="true"><use href="#i-cam"/></svg></button>
+    <input id="cw-file" type="file" accept="image/*" hidden>
     <textarea id="cw-text" rows="1" maxlength="1000" placeholder="Напишите сообщение…" aria-label="Сообщение"></textarea>
     <button type="submit" aria-label="Отправить">➤</button>
   </form>
@@ -312,7 +320,10 @@ ${notice}
   var D=JSON.parse(document.getElementById('cw-data').textContent);
   var $=function(id){return document.getElementById(id)};
   var btn=$('cw-btn'),panel=$('cw-panel'),log=$('cw-log'),form=$('cw-form'),text=$('cw-text'),dot=$('cw-dot'),sub=$('cw-sub'),
-      who=$('cw-who'),nameI=$('cw-name'),phoneI=$('cw-phone');
+      who=$('cw-who'),nameI=$('cw-name'),phoneI=$('cw-phone'),
+      file=$('cw-file'),clip=$('cw-clip'),att=$('cw-attach'),prev=$('cw-prev'),pinfo=$('cw-pinfo'),pdel=$('cw-pdel'),
+      sendBtn=form.querySelector('button[type=submit]');
+  var photo=null,photoUrl=null,prepping=false;
   var seen={},lastId=0,cid=null,timer=null,lastAct=0,openP=false,unread=0,recent=false,waiting=false,hinted=false,hintTimer=null,
       chips=null,baseTitle=document.title;
   try{cid=localStorage.getItem('cw_cid')}catch(e){}
@@ -331,7 +342,13 @@ ${notice}
     if(seen[m.id])return;seen[m.id]=1;
     var d=el('div','cw-msg '+(m.v?'me':'them'));
     if(!m.v)d.appendChild(el('span','cw-from','Мастер'));
-    d.appendChild(el('span','',m.text));
+    var src=m.img||(m.p&&cid?'/api/chat/photo/'+m.p+'?cid='+cid:'');
+    if(src){
+      var a=el('a','cw-ph'),im=el('img','cw-photo');
+      a.href=src;a.target='_blank';a.rel='noopener';a.setAttribute('aria-label','Открыть фото');
+      im.src=src;im.alt='Фото';im.loading='lazy';im.onload=scroll;a.appendChild(im);d.appendChild(a);
+    }
+    if(m.text)d.appendChild(el('span','',m.text));
     if(m.tick){var k=el('span','cw-tick','✓');k.title='Доставлено мастеру';d.appendChild(k)}
     log.appendChild(d);scroll();
   }
@@ -345,14 +362,15 @@ ${notice}
 
   function hello(){
     var d=el('div','cw-msg them auto');d.appendChild(el('span','cw-from','Подсказка'));
-    d.appendChild(el('span','',window.__open?'Здравствуйте! Напишите, чем помочь, или выберите вопрос ниже.':'Здравствуйте! Сейчас мы не на связи. Оставьте сообщение и номер телефона, ответим в рабочее время.'));
+    d.appendChild(el('span','',window.__open?'Здравствуйте! Напишите, чем помочь, или выберите вопрос ниже. Можно приложить фото ключа.':'Здравствуйте! Сейчас мы не на связи. Оставьте сообщение (можно с фото ключа) и номер телефона, ответим в рабочее время.'));
     log.appendChild(d);
     chips=el('div','cw-chips');
-    [['Сколько стоит дубликат ключа?','send'],['График работы','hours'],['Как добраться','way']].forEach(function(c){
+    [['Сколько стоит дубликат ключа?','send'],['Прислать фото ключа','photo'],['График работы','hours'],['Как добраться','way']].forEach(function(c){
       var b=el('button','',c[0]);b.type='button';
       b.addEventListener('click',function(){
         removeChips();
         if(c[1]==='send'){text.value=c[0];form.requestSubmit()}
+        else if(c[1]==='photo')file.click();
         else if(c[1]==='hours')note(D.hours.map(function(r){return r.label+': '+r.value}).join('\\n'));
         else note(D.address,[['Маршрут в Яндекс Картах',D.ya],['Открыть в 2ГИС',D.gis]]);
       });
@@ -426,16 +444,65 @@ ${notice}
     },150000);
   }
 
+  /* фото: уменьшаем и сжимаем прямо в браузере (до 1600 px, JPEG), чтобы отправка шла быстро даже по плохой связи */
+  function prep(f){
+    return new Promise(function(res,rej){
+      if(f.size>40*1024*1024)return rej();
+      var im=new Image(),u=URL.createObjectURL(f);
+      im.onload=function(){
+        var s=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(im.width*s));c.height=Math.max(1,Math.round(im.height*s));
+        var g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);
+        URL.revokeObjectURL(u);
+        c.toBlob(function(b){
+          if(!b)return rej();
+          if(b.size<=850000)return res(b);
+          c.toBlob(function(b2){b2&&b2.size<=850000?res(b2):rej()},'image/jpeg',0.55);
+        },'image/jpeg',0.82);
+      };
+      im.onerror=function(){URL.revokeObjectURL(u);rej()};
+      im.src=u;
+    });
+  }
+  function clearPhoto(keepUrl){
+    photo=null;if(photoUrl&&!keepUrl)URL.revokeObjectURL(photoUrl);photoUrl=null;
+    att.hidden=true;prev.hidden=true;prev.removeAttribute('src');file.value='';
+    text.placeholder='Напишите сообщение…';
+  }
+  clip.addEventListener('click',function(){file.click()});
+  pdel.addEventListener('click',function(){clearPhoto();text.focus()});
+  file.addEventListener('change',function(){
+    var f=file.files&&file.files[0];if(!f)return;
+    removeChips();clearPhoto();
+    prepping=true;att.hidden=false;pinfo.textContent='Готовлю фото…';sendBtn.disabled=true;
+    prep(f).then(function(b){
+      photo=b;photoUrl=URL.createObjectURL(b);prev.src=photoUrl;prev.hidden=false;
+      pinfo.textContent='Фото готово. Его увидит только мастерская.';
+      text.placeholder='Вопрос про этот ключ…';
+      text.focus();
+    }).catch(function(){
+      clearPhoto();problem('Не удалось обработать фото. Выберите другое или опишите ключ словами.');
+    }).then(function(){prepping=false;sendBtn.disabled=false});
+  });
+
   form.addEventListener('submit',function(e){
     e.preventDefault();
-    var t=text.value.trim();if(!t)return;
-    var sendBtn=form.querySelector('button');sendBtn.disabled=true;removeChips();
-    fetch('/api/chat/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cid:cid,text:t,name:nameI.value,phone:phoneI.value})})
+    if(prepping)return;
+    var t=text.value.trim();if(!t&&!photo)return;
+    sendBtn.disabled=true;removeChips();
+    var req;
+    if(photo){
+      var fd=new FormData();fd.append('cid',cid||'');fd.append('text',t);fd.append('name',nameI.value);fd.append('phone',phoneI.value);fd.append('photo',photo,'photo.jpg');
+      req={method:'POST',body:fd};
+    }else req={method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cid:cid,text:t,name:nameI.value,phone:phoneI.value})};
+    var sentUrl=photo?photoUrl:null;
+    fetch('/api/chat/send',req)
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
     .then(function(x){
       if(!x.ok){problem(x.j.error||'Не удалось отправить. Позвоните нам.');return}
       cid=x.j.cid;lastAct=Date.now();save();
-      bubble({id:x.j.id,v:1,text:t,tick:x.j.delivered});text.value='';text.style.height='auto';
+      bubble({id:x.j.id,v:1,text:t,img:sentUrl,tick:x.j.delivered});text.value='';text.style.height='auto';
+      if(sentUrl)clearPhoto(true);
       if(!x.j.delivered)problem('Сообщение сохранено, но пока не дошло до мастера. Позвоните нам, пожалуйста.');
       if(phoneI.value)who.open=false;
       armHint();schedule();

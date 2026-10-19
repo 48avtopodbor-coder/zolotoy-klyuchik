@@ -140,6 +140,16 @@ html.vlock{overflow:hidden}
 .cw-form textarea{flex:1;resize:none;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:0.5rem;padding:0.625rem;font:inherit;max-height:6.875rem}
 .cw-form button{flex:none;width:2.875rem;height:2.75rem;border-radius:0.5rem;border:0;background:var(--gold);color:var(--gold-ink);font-size:1.15rem;cursor:pointer}
 .cw-form button:disabled{opacity:.6}
+.cw-form .cw-clip{background:none;border:1px solid var(--gold-t);color:var(--gold-t);display:grid;place-items:center;padding:0}
+.cw-form .cw-clip .ico{width:1.4rem;height:1.4rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cw-attach{display:flex;align-items:center;gap:.65rem;padding:.5rem .75rem;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+.cw-attach[hidden],.cw-attach img[hidden]{display:none}
+.cw-attach img{flex:none;width:3.25rem;height:3.25rem;object-fit:cover;border-radius:.4rem;border:1px solid var(--line)}
+.cw-attach span{flex:1;min-width:0}
+.cw-attach button{flex:none;width:2.5rem;height:2.5rem;border:0;border-radius:.5rem;background:none;color:var(--fg);font-size:1.5rem;line-height:1;cursor:pointer}
+.cw-ph{display:block;margin-bottom:.35rem}
+.cw-ph:last-child{margin-bottom:0}
+.cw-photo{display:block;width:100%;max-width:15rem;max-height:12rem;object-fit:cover;border-radius:.5rem;background:var(--panel)}
 @media (max-width:32.5rem){.cw-panel{right:0;bottom:0;width:100vw;height:min(35rem,88dvh);border-radius:0.875rem 0.875rem 0 0}}
 
 .cw-panel header small.on{color:#7fe0a2}
@@ -195,6 +205,8 @@ html.vlock{overflow:hidden}
   .cw-btn:hover{background:var(--gold-hover);transform:scale(1.05)}
   .vc-btn:hover{border-color:var(--gold);color:var(--gold)}
   .cw-form button:hover{background:var(--gold-hover)}
+  .cw-form .cw-clip:hover{background:rgba(226,180,79,.14)}
+  .cw-attach button:hover{background:rgba(255,255,255,.1)}
   .cw-panel header button:hover{background:rgba(255,255,255,.1)}
   .info a:hover,.vlink:hover,.cw-link:hover{text-decoration-thickness:.125rem;color:var(--gold-t-hover)}
   .svc-more summary:hover{text-decoration:underline;text-underline-offset:.25rem}
