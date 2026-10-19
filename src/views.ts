@@ -58,7 +58,7 @@ export function renderDetails(text: string): string {
 
 export function servicePrice(s: Service): string {
   if (s.price == null || s.mode === 'none') return '';
-  if (s.mode === 'sale') return `<div class="svc-price">${s.old_price != null && s.old_price > s.price ? `<s>${rub(s.old_price)}</s>` : ''}<small>Акция</small>${rub(s.price)}</div>`;
+  if (s.mode === 'sale') return `<div class="svc-price sale">${s.old_price != null && s.old_price > s.price ? `<s>${rub(s.old_price)}</s>` : ''}<span class="tag-sale">Акция</span>${rub(s.price)}</div>`;
   return `<div class="svc-price">${s.mode === 'from' ? '<span>от</span> ' : ''}${rub(s.price)}</div>`;
 }
 
@@ -104,9 +104,9 @@ function productCard(p: Product): string {
         .map((k, i) => `<img src="/img/${esc(k)}" alt="${esc(p.title)}${p.images.length > 1 ? `, фото ${i + 1}` : ''}" width="800" height="600" loading="lazy" decoding="async">`)
         .join('')}</div>${p.images.length > 1 ? `<span class="gal-cnt">1/${p.images.length}</span>` : ''}</div>`
     : `<div class="ph">фото скоро</div>`;
-  const badges = `${p.is_sale ? '<span class="badge sale">Акция</span>' : ''}${p.in_stock ? '' : '<span class="badge out">Нет в наличии</span>'}`;
+  const badges = `${p.is_sale ? '<span class="tag-sale on-card">Акция</span>' : ''}${p.in_stock ? '' : '<span class="badge out">Нет в наличии</span>'}`;
   const price = p.show_price && p.price != null
-    ? `<div class="pr">${p.is_sale && p.old_price != null && p.old_price > p.price ? `<s>${rub(p.old_price)}</s> ` : ''}${rub(p.price)}</div>`
+    ? `<div class="pr${p.is_sale ? ' sale' : ''}">${p.is_sale && p.old_price != null && p.old_price > p.price ? `<s>${rub(p.old_price)}</s> ` : ''}${rub(p.price)}</div>`
     : `<div class="pr ask">Цену уточняйте по телефону</div>`;
   return `<article class="good${p.in_stock ? '' : ' is-out'}"><div class="gal-wrap">${photos}${badges}</div><div class="t"><h3>${esc(p.title)}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}${price}</div></article>`;
 }

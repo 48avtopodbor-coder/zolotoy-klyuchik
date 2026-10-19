@@ -1,6 +1,6 @@
 export const CSS = `
 /* Вариант В: спокойный и аккуратный, синяя «чертёжная» гамма, тонкие линии, профиль ключа как главный образ */
-:root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;color-scheme:dark;
+:root{--bg:#0f2233;--panel:#14304a;--line:#2b5276;--fg:#e8f0f7;--muted:#9fb6ca;--gold:#e2b44f;--gold-ink:#1a1405;--red:#e0382c;--red-hi:#ff5a4d;color-scheme:dark;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--body);
@@ -80,7 +80,6 @@ footer{background:#0a1824;border-top:1px solid var(--line);padding-block:40px 28
 .gal-cnt{position:absolute;right:8px;bottom:8px;background:rgba(6,16,26,.75);color:var(--fg);font:.75rem var(--mono);padding:3px 8px;border-radius:99px}
 .ph{aspect-ratio:4/3;background:repeating-linear-gradient(135deg,var(--bg) 0 12px,var(--line) 12px 13px);display:grid;place-items:center;color:var(--muted);font-size:.8rem}
 .badge{position:absolute;left:8px;top:8px;font:700 .72rem var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:5px}
-.badge.sale{background:var(--gold);color:var(--gold-ink)}
 .badge.out{top:auto;bottom:8px;left:8px;background:#3a4650;color:#dfe6ec}
 .is-out .gal-track,.is-out .ph{filter:grayscale(.8);opacity:.7}
 .good .pr s{color:var(--muted);font-weight:400;font-size:.85rem;margin-right:4px}
@@ -151,7 +150,6 @@ html.vlock{overflow:hidden}
 .svc-price{font:700 1.1rem var(--mono);color:var(--gold);white-space:nowrap;text-align:right;padding-top:2px}
 .svc-price span{font-size:.8rem;font-weight:500;color:var(--muted)}
 .svc-price s{display:block;color:var(--muted);font-weight:400;font-size:.82rem}
-.svc-price small{display:inline-block;font:700 .62rem var(--mono);letter-spacing:.1em;text-transform:uppercase;background:var(--gold);color:var(--gold-ink);padding:2px 7px;border-radius:4px;margin-right:6px;vertical-align:middle}
 .svc-more{grid-column:2/-1;margin-top:6px}
 .svc-more summary{cursor:pointer;color:var(--gold);font-size:.9rem;list-style:none;width:max-content}
 .svc-more summary::-webkit-details-marker{display:none}
@@ -163,4 +161,12 @@ html.vlock{overflow:hidden}
 .svc-text ul{margin:0 0 10px;padding-left:1.2em;color:var(--muted)}
 .svc-text li{margin:3px 0}
 @media (max-width:560px){.row.svc{grid-template-columns:1fr;gap:4px}.svc-price{text-align:left}.svc-more{grid-column:1}}
+
+.tag-sale{display:inline-flex;align-items:center;background:var(--red);color:#fff;font:800 .78rem var(--body);letter-spacing:.08em;text-transform:uppercase;padding:6px 12px 6px 22px;
+  clip-path:polygon(14px 0,100% 0,100% 100%,14px 100%,0 50%);position:relative;transform:rotate(-4deg);margin-right:8px;vertical-align:middle;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.tag-sale::before{content:"";position:absolute;left:11px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--bg)}
+.tag-sale.on-card{position:absolute;left:-2px;top:12px;z-index:2;font-size:.9rem;padding:8px 16px 8px 26px;margin:0}
+.tag-sale.on-card::before{left:13px}
+.svc-price.sale,.good .pr.sale{color:var(--red-hi)}
+.svc-price.sale s,.good .pr.sale s{color:var(--muted)}
 `;
