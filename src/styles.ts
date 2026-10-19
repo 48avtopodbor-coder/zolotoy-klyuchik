@@ -252,4 +252,11 @@ html.vlock{overflow:hidden}
 .svc-tile .ico *{stroke-width:1.7}
 .svc-lead .lbl{overflow-wrap:anywhere}
 @media (max-width:35rem){.row.svc{grid-template-columns:1fr}}
+
+/* плашка про особые дни и список в подвале */
+.notice{background:rgba(226,180,79,.14);border-bottom:1px solid var(--gold);color:var(--fg);font-size:.95rem}
+.notice .wrap{padding-block:.55rem}
+.notice b{color:var(--gold)}
+.spec{margin:.4rem 0 0;padding:0;list-style:none;color:var(--fg);font-size:.92rem}
+.spec li{padding:.15rem 0}
 `;

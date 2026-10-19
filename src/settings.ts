@@ -1,6 +1,7 @@
 export interface Day { off: boolean; open: string; close: string }
 export interface Hours { days: Day[]; lunch: { on: boolean; from: string; to: string } }
 export interface Contacts { phones: string[]; whatsapp: string; telegram: string; address: string }
+export interface SpecialDay { date: string; kind: 'closed' | 'short' | 'custom'; open: string | null; close: string | null; note: string }
 export interface Settings { hours: Hours; contacts: Contacts; pw: string | null; ver: number }
 
 export const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -62,3 +63,27 @@ export function hoursRows(h: Hours): { label: string; value: string }[] {
 }
 
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/* ---------- особые дни (праздники, короткие дни) ---------- */
+
+export const loadSpecial = async (db: D1Database): Promise<SpecialDay[]> =>
+  (await db.prepare('SELECT date, kind, open, close, note FROM special_days ORDER BY date').all<SpecialDay>()).results;
+
+/** Сегодняшняя дата по Липецку (МСК, UTC+3) в виде ГГГГ-ММ-ДД. */
+export const mskToday = (now = Date.now()): string => new Date(now + 3 * 3600e3).toISOString().slice(0, 10);
+
+export const addDaysStr = (date: string, n: number): string => new Date(Date.parse(date + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+
+/** Индекс дня недели: 0 = понедельник. */
+export const weekdayIdx = (date: string): number => (new Date(date + 'T00:00:00Z').getUTCDay() + 6) % 7;
+
+export const ruDate = (date: string): string =>
+  new Date(date + 'T00:00:00Z').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short', timeZone: 'UTC' });
+
+/** Что написать про особый день для посетителей; null, если день и так выходной по обычному графику. */
+export function specialLine(sp: SpecialDay, h: Hours): string | null {
+  const normallyOff = h.days[weekdayIdx(sp.date)].off;
+  const f = (t: string | null) => (t ?? '').replace(/^0/, '');
+  if (sp.kind === 'closed') return normallyOff ? null : `${ruDate(sp.date)}: выходной${sp.note ? `, ${sp.note.replace(/\s*\(.*\)$/, '')}` : ''}`;
+  return `${ruDate(sp.date)}: ${f(sp.open)}–${f(sp.close)}${sp.note ? `, ${sp.note.replace(/\s*\(.*\)$/, '')}` : ''}`;
+}

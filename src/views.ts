@@ -1,5 +1,5 @@
 import { CSS } from './styles';
-import { type Contacts, type Hours, hoursRows, phoneTel, waNumber } from './settings';
+import { type Contacts, type Hours, type SpecialDay, addDaysStr, hoursRows, mskToday, phoneTel, specialLine, waNumber } from './settings';
 
 export interface Product {
   id: number;
@@ -88,7 +88,7 @@ function serviceRow(s: Service): string {
 const DAYS_LD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /** Разметка schema.org: поисковики показывают адрес, график и цены в выдаче и на карте. */
-function jsonLd(origin: string, contacts: Contacts, hours: Hours, services: Service[]): string {
+function jsonLd(origin: string, contacts: Contacts, hours: Hours, services: Service[], special: SpecialDay[]): string {
   const main = contacts.phones[0];
   const data = {
     '@context': 'https://schema.org',
@@ -100,6 +100,9 @@ function jsonLd(origin: string, contacts: Contacts, hours: Hours, services: Serv
     openingHoursSpecification: hours.days
       .map((d, i) => (d.off ? null : { '@type': 'OpeningHoursSpecification', dayOfWeek: DAYS_LD[i], opens: d.open, closes: d.close }))
       .filter(Boolean),
+    ...(special.length ? { specialOpeningHoursSpecification: special.map((x) => ({
+      '@type': 'OpeningHoursSpecification', validFrom: x.date, validThrough: x.date,
+      opens: x.kind === 'closed' ? '00:00' : x.open, closes: x.kind === 'closed' ? '00:00' : x.close })) } : {}),
     areaServed: { '@type': 'City', name: 'Липецк' },
     hasOfferCatalog: {
       '@type': 'OfferCatalog',
@@ -155,8 +158,13 @@ function videoCard(v: Video, i: number): string {
   return `<div class="vcard"><div class="vbox" data-oid="${esc(v.oid)}" data-vid="${esc(v.vid)}"><button class="vplay" type="button" aria-label="Смотреть видео ${i + 1}">${cover}<i></i></button></div><a class="vlink" href="${esc(v.url)}" target="_blank" rel="noopener">Открыть во ВКонтакте</a></div>`;
 }
 
-export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string }): string {
+export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string; special: SpecialDay[] }): string {
   const { products, videos, hours, contacts, services, origin } = d;
+  const today = mskToday();
+  const upcoming = d.special.filter((x) => x.date >= today && x.date <= addDaysStr(today, 120));
+  const soon = upcoming.filter((x) => x.date <= addDaysStr(today, 7)).map((x) => specialLine(x, hours)).filter((x): x is string => !!x);
+  const later = upcoming.filter((x) => x.date <= addDaysStr(today, 45)).map((x) => specialLine(x, hours)).filter((x): x is string => !!x);
+  const notice = soon.length ? `<div class="notice" role="status"><div class="wrap"><b>Обратите внимание:</b> ${soon.map(esc).join(' · ')}</div></div>` : '';
   const main = contacts.phones[0] ?? '';
   const wa = waNumber(contacts);
   const tg = contacts.telegram.replace(/^@/, '');
@@ -174,7 +182,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     </div>
   </div></section>`
     : '';
-  const hoursJson = JSON.stringify(hours).replace(/</g, '\\u003c');
+  const hoursJson = JSON.stringify({ ...hours, special: upcoming.map((x) => ({ d: x.date, k: x.kind, o: x.open, c: x.close, n: x.note })) }).replace(/</g, '\\u003c');
   const phonesHtml = contacts.phones.map((p) => `<p><a class="mlink phone" href="tel:${phoneTel(p)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>${esc(p)}</a></p>`).join('');
 
   const body = `
@@ -188,6 +196,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   <a class="logo" href="#top">Мастерская <b>Золотой ключик</b></a>
   ${main ? `<a class="tel" href="tel:${phoneTel(main)}">${esc(main)}</a>` : ''}
 </div></div>
+${notice}
 <main id="top">
   <div class="hero"><div class="wrap">
     <div>
@@ -238,7 +247,8 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
       <p><a href="https://yandex.ru/maps/?text=${mapQ}" target="_blank" rel="noopener">Маршрут в Яндекс Картах</a></p>
       <p><a href="https://2gis.ru/lipetsk/search/${mapQ}" target="_blank" rel="noopener">Открыть в 2ГИС</a></p></div>
     <div><div class="lbl">График</div>
-      <table class="hrs">${hoursRows(hours).map((r) => `<tr><td>${esc(r.label)}</td><td>${esc(r.value)}</td></tr>`).join('')}</table></div>
+      <table class="hrs">${hoursRows(hours).map((r) => `<tr><td>${esc(r.label)}</td><td>${esc(r.value)}</td></tr>`).join('')}</table>
+      ${later.length ? `<div class="lbl" style="margin-top:1rem">Особые дни</div><ul class="spec">${later.slice(0, 8).map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</div>
     <div><div class="lbl">Связь</div>${phonesHtml}
       ${wa ? `<p><a class="mlink wa" href="https://wa.me/${wa}" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg>WhatsApp</a></p>` : ''}
       ${tg ? `<p><a class="mlink tg" href="https://t.me/${esc(tg)}" target="_blank" rel="noopener"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg>Telegram: @${esc(tg)}</a></p>` : ''}</div>
@@ -401,12 +411,21 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
 <script type="application/json" id="hours-data">${hoursJson}</script>
 <script>
 (function(){
-  /* статус «открыто / закрыто» по графику из админки; Липецк = МСК (UTC+3) */
-  var H=JSON.parse(document.getElementById('hours-data').textContent);
-  var m=new Date(Date.now()+3*3600e3),di=(m.getUTCDay()+6)%7,mins=m.getUTCHours()*60+m.getUTCMinutes();
+  /* статус «открыто / закрыто» по графику и особым дням из админки; Липецк = МСК (UTC+3) */
+  var H=JSON.parse(document.getElementById('hours-data').textContent),SP={};
+  H.special.forEach(function(x){SP[x.d]=x});
+  var m=new Date(Date.now()+3*3600e3),mins=m.getUTCHours()*60+m.getUTCMinutes();
+  var today=new Date(Date.UTC(m.getUTCFullYear(),m.getUTCMonth(),m.getUTCDate()));
   function tm(s){var p=s.split(':');return +p[0]*60+ +p[1]}
   function f(s){return s.replace(/^0/,'')}
-  var d=H.days[di],text='',open=false;
+  function sched(dt){
+    var key=dt.toISOString().slice(0,10),sp=SP[key];
+    if(sp){return sp.k==='closed'?{off:true,note:sp.n}:{off:false,open:sp.o,close:sp.c,note:sp.n}}
+    var d=H.days[(dt.getUTCDay()+6)%7];return {off:d.off,open:d.open,close:d.close};
+  }
+  var MONTHS=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  var WD=['в воскресенье','в понедельник','во вторник','в среду','в четверг','в пятницу','в субботу'];
+  var d=sched(today),text='',open=false;
   if(!d.off){
     var o=tm(d.open),c=tm(d.close);
     if(mins>=o&&mins<c){
@@ -415,8 +434,13 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     }else if(mins<o)text='Сейчас закрыто. Откроемся сегодня в '+f(d.open);
   }
   if(!text){
-    var nm=['в понедельник','во вторник','в среду','в четверг','в пятницу','в субботу','в воскресенье'];
-    for(var i=1;i<=7;i++){var n=H.days[(di+i)%7];if(!n.off){text='Сейчас закрыто. Откроемся '+(i===1?'завтра':nm[(di+i)%7])+' в '+f(n.open);break}}
+    for(var i=1;i<=30;i++){
+      var dt=new Date(today.getTime()+i*86400000),n=sched(dt);
+      if(!n.off){
+        var when=i===1?'завтра':i<7?WD[dt.getUTCDay()]:dt.getUTCDate()+' '+MONTHS[dt.getUTCMonth()];
+        text=(d.off&&d.note?'Сегодня выходной ('+d.note.replace(/\\s*\\(.*\\)$/,'')+'). ':'Сейчас закрыто. ')+'Откроемся '+when+' в '+f(n.open);break;
+      }
+    }
     if(!text)text='Сейчас закрыто';
   }
   var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;
@@ -516,6 +540,6 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   const head = `<link rel="canonical" href="${esc(origin)}/">
 <meta property="og:type" content="website"><meta property="og:locale" content="ru_RU">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(origin)}/">
-${jsonLd(origin, contacts, hours, services)}`;
+${jsonLd(origin, contacts, hours, services, upcoming)}`;
   return shell(title, body, { desc, head });
 }

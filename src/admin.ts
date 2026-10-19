@@ -1,5 +1,5 @@
 import { esc, rub, shell, SERVICE_ICONS, type Service } from './views';
-import { DAY_LONG, type Contacts, type Hours } from './settings';
+import { DAY_LONG, mskToday, ruDate, type Contacts, type Hours, type SpecialDay } from './settings';
 
 export interface AdminProduct {
   id: number; title: string; description: string; price: number | null; old_price: number | null;
@@ -228,7 +228,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 
 /* ---------- часы, контакты, пароль, заявки ---------- */
 
-export function hoursPage(h: Hours, flash?: string, error?: string): string {
+export function hoursPage(h: Hours, special: SpecialDay[], flash?: string, error?: string): string {
   const rows = h.days.map((d, i) => `<div class="dayrow"><b>${DAY_LONG[i]}</b>
   <div class="chk"><input id="off${i}" name="off${i}" type="checkbox" value="1"${d.off ? ' checked' : ''}><label for="off${i}">выходной</label></div>
   <div><label class="hint" for="o${i}" style="margin:0">с</label><input id="o${i}" name="open${i}" type="time" value="${esc(d.open)}"></div>
@@ -241,7 +241,37 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
   <div class="row2"><div><label for="lf">Обед с</label><input id="lf" name="lunch_from" type="time" value="${esc(h.lunch.from)}"></div>
   <div><label for="lt">Обед до</label><input id="lt" name="lunch_to" type="time" value="${esc(h.lunch.to)}"></div></div>
   <p><button class="abtn gold" type="submit" style="margin-top:1.125rem">Сохранить</button></p>
-</form>`, flash);
+</form>
+${specialBlock(special)}`, flash);
+}
+
+const KIND_LABEL: Record<string, string> = { closed: 'Выходной', short: 'Сокращённый день', custom: 'Особые часы' };
+
+function specialBlock(special: SpecialDay[]): string {
+  const today = mskToday();
+  const upcoming = special.filter((x) => x.date >= today);
+  const past = special.length - upcoming.length;
+  const rows = upcoming.length ? upcoming.map((x) => `<div class="item sp-item">
+  <div><b>${esc(ruDate(x.date))}</b><small>${esc(KIND_LABEL[x.kind] ?? x.kind)}${x.kind !== 'closed' && x.open ? `: ${esc(x.open)}–${esc(x.close ?? '')}` : ''}${x.note ? ` · ${esc(x.note)}` : ''}</small></div>
+  <form method="post" action="/admin/special/${x.date}/delete"><button class="abtn sm danger" type="submit">Удалить</button></form></div>`).join('')
+    : '<p class="hint">Особых дней пока нет.</p>';
+  return `<h2 style="font-size:1.15rem;margin:1.75rem 0 .5rem">Праздники и особые дни</h2>
+<p class="sub">В такие дни сайт показывает «выходной» или другие часы и сам считает, когда откроетесь. За неделю до особого дня наверху сайта появляется плашка.</p>
+<form class="card" method="post" action="/admin/hours/holidays"><b>Праздники РФ</b>
+  <p class="hint">Добавит нерабочие дни по производственному календарю РФ: ноябрь и декабрь 2026 года и весь 2027 год. Сокращённые предпраздничные дни 2027 года я пока не заполнял, их стоит сверить с официальным календарём и добавить вручную. Если правительство перенесёт выходные, поменяйте дни здесь.</p>
+  <button class="abtn" type="submit">Добавить праздники РФ</button></form>
+<div class="card">${rows}${past ? `<p class="hint" style="margin-top:.75rem">Прошедших дат: ${past} (на сайте не показываются).</p>` : ''}</div>
+<form class="card f" method="post" action="/admin/special">
+  <b>Добавить особый день</b>
+  <div class="row2"><div><label for="sp-date">Дата</label><input id="sp-date" name="date" type="date" required></div>
+  <div><label for="sp-kind">Что в этот день</label><select id="sp-kind" name="kind" class="sel"><option value="closed">Выходной</option><option value="short">Сокращённый день</option><option value="custom">Особые часы</option></select></div></div>
+  <div class="row2"><div><label for="sp-o">Открытие (если не выходной)</label><input id="sp-o" name="open" type="time" value="09:00"></div>
+  <div><label for="sp-c">Закрытие</label><input id="sp-c" name="close" type="time" value="16:00"></div></div>
+  <label for="sp-note">Пояснение (необязательно)</label><input id="sp-note" name="note" type="text" maxlength="120" placeholder="Например: День народного единства">
+  <p><button class="abtn gold" type="submit" style="margin-top:.9rem">Добавить день</button></p>
+  <p class="hint">Если на эту дату уже есть запись, она заменится.</p>
+</form>
+<style>.sp-item{grid-template-columns:minmax(0,1fr) auto}.sel{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:.375rem;padding:.75rem;font:inherit}</style>`;
 }
 
 export function contactsPage(c: Contacts, flash?: string, error?: string): string {

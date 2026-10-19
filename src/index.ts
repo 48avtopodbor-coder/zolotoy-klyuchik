@@ -1,7 +1,8 @@
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, makeSession, passwordOk, sessionOk, verifyPassword, SESSION_MAX_AGE } from './auth';
-import { DEFAULT_CONTACTS, TIME_RE, loadSettings, saveSetting, type Contacts, type Hours, type Settings } from './settings';
+import { DEFAULT_CONTACTS, TIME_RE, loadSettings, loadSpecial, saveSetting, type Contacts, type Hours, type Settings } from './settings';
+import { HOLIDAYS_RF } from './holidays';
 import { homePage, SERVICE_ICONS, type Product, type Service, type Video } from './views';
 import * as A from './admin';
 
@@ -102,8 +103,8 @@ const files = (form: FormData, name: string): File[] =>
 /* ---------- публичная часть ---------- */
 
 app.get('/', async (c) => {
-  const [products, videos, st, services] = await Promise.all([loadProducts(c.env.DB), loadVideos(c.env.DB), loadSettings(c.env.DB), loadServices(c.env.DB)]);
-  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, services, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
+  const [products, videos, st, services, special] = await Promise.all([loadProducts(c.env.DB), loadVideos(c.env.DB), loadSettings(c.env.DB), loadServices(c.env.DB), loadSpecial(c.env.DB)]);
+  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, services, special, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
 });
 
 app.get('/img/:key', async (c) => {
@@ -549,7 +550,7 @@ app.post('/admin/videos/:id/delete', async (c) => {
 
 /* ---------- часы работы ---------- */
 
-app.get('/admin/hours', (c) => c.html(A.hoursPage(c.get('st').hours, A.flashText(q(c)))));
+app.get('/admin/hours', async (c) => c.html(A.hoursPage(c.get('st').hours, await loadSpecial(c.env.DB), A.flashText(q(c)))));
 
 app.post('/admin/hours', async (c) => {
   const f = await c.req.formData();
@@ -557,17 +558,56 @@ app.post('/admin/hours', async (c) => {
   for (let i = 0; i < 7; i++) {
     const open = String(f.get(`open${i}`) ?? ''), close = String(f.get(`close${i}`) ?? ''), off = !!f.get(`off${i}`);
     if (!off && (!TIME_RE.test(open) || !TIME_RE.test(close) || open >= close))
-      return c.html(A.hoursPage(c.get('st').hours, undefined, `Проверьте время в строке «${['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'][i]}»: открытие должно быть раньше закрытия`));
+      return c.html(A.hoursPage(c.get('st').hours, await loadSpecial(c.env.DB), undefined, `Проверьте время в строке «${['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'][i]}»: открытие должно быть раньше закрытия`));
     days.push({ off, open: TIME_RE.test(open) ? open : '09:00', close: TIME_RE.test(close) ? close : '17:00' });
   }
   const lunch = { on: !!f.get('lunch_on'), from: String(f.get('lunch_from') ?? ''), to: String(f.get('lunch_to') ?? '') };
   if (lunch.on && (!TIME_RE.test(lunch.from) || !TIME_RE.test(lunch.to) || lunch.from >= lunch.to))
-    return c.html(A.hoursPage(c.get('st').hours, undefined, 'Проверьте обеденный перерыв: начало должно быть раньше конца'));
+    return c.html(A.hoursPage(c.get('st').hours, await loadSpecial(c.env.DB), undefined, 'Проверьте обеденный перерыв: начало должно быть раньше конца'));
   if (!TIME_RE.test(lunch.from)) lunch.from = '13:00';
   if (!TIME_RE.test(lunch.to)) lunch.to = '14:00';
   const hours: Hours = { days, lunch };
   await saveSetting(c.env.DB, 'hours', hours);
   return c.redirect('/admin/hours?saved=1');
+});
+
+const validDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d + 'T00:00:00Z')) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
+
+app.post('/admin/special', async (c) => {
+  const f = await c.req.formData();
+  const date = String(f.get('date') ?? '');
+  const kind = String(f.get('kind') ?? 'closed');
+  const open = String(f.get('open') ?? ''), close = String(f.get('close') ?? '');
+  const note = String(f.get('note') ?? '').trim().slice(0, 120);
+  const fail = async (m: string) => c.html(A.hoursPage(c.get('st').hours, await loadSpecial(c.env.DB), undefined, m));
+  if (!validDate(date)) return fail('Укажите дату особого дня');
+  if (!['closed', 'short', 'custom'].includes(kind)) return fail('Выберите тип дня');
+  if (kind !== 'closed' && (!TIME_RE.test(open) || !TIME_RE.test(close) || open >= close)) return fail('Проверьте время: открытие должно быть раньше закрытия');
+  await c.env.DB.prepare('INSERT INTO special_days (date,kind,open,close,note) VALUES (?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET kind=excluded.kind, open=excluded.open, close=excluded.close, note=excluded.note')
+    .bind(date, kind, kind === 'closed' ? null : open, kind === 'closed' ? null : close, note).run();
+  return c.redirect('/admin/hours?saved=1');
+});
+
+app.post('/admin/special/:date/delete', async (c) => {
+  await c.env.DB.prepare('DELETE FROM special_days WHERE date=?').bind(c.req.param('date')).run();
+  return c.redirect('/admin/hours?deleted=1');
+});
+
+/** Добавляет праздники РФ из производственного календаря. Уже существующие даты не трогает. */
+app.post('/admin/hours/holidays', async (c) => {
+  const days = c.get('st').hours.days;
+  const stmts = HOLIDAYS_RF.map((h) => {
+    let open: string | null = null, close: string | null = null;
+    if (h.kind === 'short') {
+      const d = days[(new Date(h.date + 'T00:00:00Z').getUTCDay() + 6) % 7];
+      const [hh, mm] = d.close.split(':').map(Number);
+      const t = Math.max(0, hh * 60 + mm - 60);
+      open = d.open; close = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    }
+    return c.env.DB.prepare('INSERT OR IGNORE INTO special_days (date,kind,open,close,note) VALUES (?,?,?,?,?)').bind(h.date, h.kind, open, close, h.note);
+  });
+  await c.env.DB.batch(stmts);
+  return c.redirect('/admin/hours?added=1');
 });
 
 /* ---------- контакты ---------- */
