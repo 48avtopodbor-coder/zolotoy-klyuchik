@@ -349,8 +349,8 @@ ${notice}
 
   /* статус в шапке: «на связи» только если сейчас рабочее время и мастер недавно отвечал */
   function setStatus(){
-    var on=window.__open&&recent;
-    sub.textContent=on?'● Мастер на связи':(window.__open?'Отвечаем в рабочее время':'Сейчас не на связи, ответим в рабочее время');
+    var on=recent;
+    sub.textContent=on?'● Мастер на связи':(window.__open?'Отвечаем в рабочее время':'Мастерская закрыта. Ответим, как только сможем');
     sub.className=on?'on':'';
   }
   function bubble(m){
@@ -400,7 +400,10 @@ ${notice}
   }
   function away(){
     hinted=true;
-    note((window.__status||'Сейчас мы не на связи')+'. Ваше сообщение получено, ответим в рабочее время.'+(phoneI.value?'':' Оставьте телефон (по желанию), и мы перезвоним.'),null,'Автоответ');
+    var ln=[];
+    if(D.wa)ln.push(['Написать в WhatsApp',D.wa]);
+    if(D.tg)ln.push(['Написать в Telegram',D.tg]);
+    note((window.__status||'Сейчас закрыто')+'. Сообщение передано мастеру: если он на связи, ответит раньше, иначе в рабочее время.'+(phoneI.value?'':' Оставьте телефон, и мы перезвоним.')+(ln.length?'\\n\\nЧтобы не ждать на этой странице, напишите в мессенджер: ответ придёт на телефон.':''),ln,'Автоответ');
     if(!phoneI.value)who.open=true;
   }
   /* что ответить на сообщение: до 2 тем, каждая один раз; когда закрыто, один раз сообщаем время открытия */
@@ -409,7 +412,7 @@ ${notice}
     var s=t.toLowerCase().replace(/ё/g,'е'),out=[];
     TOP.forEach(function(x){if(x[1].test(s)&&!done[x[0]])out.push(x[0])});
     out=out.slice(0,2);
-    return {topics:out,away:!window.__open&&!hinted&&out.indexOf('hours')<0};
+    return {topics:out,away:!window.__open&&!recent&&!hinted&&out.indexOf('hours')<0};
   }
   function marks(pl){return pl.topics.concat(pl.away?['away']:[]).join(',')}
   function play(pl){
@@ -421,7 +424,7 @@ ${notice}
 
   function hello(){
     var d=el('div','cw-msg them auto');d.appendChild(el('span','cw-from','Подсказка'));
-    d.appendChild(el('span','',window.__open?'Здравствуйте! Напишите, чем помочь, или выберите вопрос ниже. Можно приложить фото ключа.':'Здравствуйте! Сейчас мы не на связи. Оставьте сообщение (можно с фото ключа) и номер телефона, ответим в рабочее время.'));
+    d.appendChild(el('span','',window.__open?'Здравствуйте! Напишите, чем помочь, или выберите вопрос ниже. Можно приложить фото ключа.':'Здравствуйте! Мастерская сейчас закрыта. Напишите (можно с фото ключа): если мастер на связи, он ответит сразу, иначе в рабочее время. Оставьте телефон, чтобы мы могли перезвонить.'));
     log.appendChild(d);
     chips=el('div','cw-chips');
     [['Сколько стоит дубликат ключа?','send'],['Прислать фото ключа','photo'],['График работы','hours'],['Как добраться','way']].forEach(function(c){
@@ -492,7 +495,7 @@ ${notice}
     if(hinted)return;
     if(!window.__open){
       hinted=true;
-      note('Сейчас мы не на связи, ответим в рабочее время.'+(phoneI.value?'':' Оставьте телефон, чтобы мы могли перезвонить.'));
+      note('Мастерская закрыта. Если мастер на связи, он ответит раньше, иначе в рабочее время.'+(phoneI.value?'':' Оставьте телефон, чтобы мы могли перезвонить.'));
       if(!phoneI.value)who.open=true;
       return;
     }
