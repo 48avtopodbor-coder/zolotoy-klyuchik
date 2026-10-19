@@ -1,0 +1,210 @@
+<title>Мастерская Золотой ключик</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: одна колонка, крупные кнопки связи под палец, тёмная «латунная» гамма как у ключа */
+:root{
+  --bg:#f3f1ec; --surface:#ffffff; --fg:#1b1f24; --muted:#5d6670; --line:#d9d5ca;
+  --brass:#a87a1c; --brass-ink:#ffffff; --deep:#1f2a36; --deep-fg:#f3ead2;
+  --ok:#2f7d4f; --off:#a14b3a;
+  --font-head:Georgia,"Times New Roman",serif;
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1a222b; --fg:#ece8dc; --muted:#a2a9b0; --line:#2c3743;
+  --brass:#d6a93f; --brass-ink:#1b1403; --deep:#0c1015; --deep-fg:#f3ead2;
+  --ok:#5cc08a; --off:#e08a76; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171d; --surface:#1a222b; --fg:#ece8dc; --muted:#a2a9b0; --line:#2c3743;
+  --brass:#d6a93f; --brass-ink:#1b1403; --deep:#0c1015; --deep-fg:#f3ead2;
+  --ok:#5cc08a; --off:#e08a76; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 var(--font-body)}
+a{color:inherit}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--font-head);line-height:1.15;margin:0;text-wrap:balance}
+h2{font-size:clamp(1.6rem,4.5vw,2.2rem);margin-bottom:20px}
+section{padding-block:44px}
+.eyebrow{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);font-weight:700;margin-bottom:10px}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--deep);color:var(--deep-fg)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--deep)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--font-head);font-weight:700;font-size:1.05rem;min-width:0}
+.brand svg{flex:none;width:30px;height:30px}
+.brand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.call-sm{flex:none;background:var(--brass);color:var(--brass-ink);text-decoration:none;font-weight:700;padding:9px 14px;border-radius:8px;white-space:nowrap}
+
+/* hero */
+.hero{background:var(--deep);color:var(--deep-fg);padding-block:44px 52px}
+.hero h1{font-size:clamp(2.1rem,8vw,3.8rem);max-width:15ch}
+.hero h1 em{font-style:normal;color:var(--brass)}
+.hero p.lead{max-width:46ch;font-size:1.1rem;margin:16px 0 26px;color:#d8d2bf}
+.cta{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 20px;border-radius:10px;font-weight:700;text-decoration:none;font-size:1.02rem;border:2px solid transparent}
+.btn-main{background:var(--brass);color:var(--brass-ink)}
+.btn-ghost{border-color:#4a5967;color:var(--deep-fg)}
+.btn:focus-visible,.call-sm:focus-visible,a:focus-visible,button:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+.status{display:inline-flex;align-items:center;gap:8px;margin-top:22px;font-size:.95rem;color:#d8d2bf}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--off)}
+.status.open .dot{background:var(--ok)}
+
+/* services */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px}
+.card svg{width:40px;height:40px;color:var(--brass);margin-bottom:12px}
+.card h3{font-size:1.25rem;margin-bottom:6px}
+.card p{margin:0;color:var(--muted)}
+
+/* products */
+.goods{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.good{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ph{aspect-ratio:4/3;background:repeating-linear-gradient(135deg,var(--bg) 0 12px,var(--line) 12px 13px);display:grid;place-items:center;color:var(--muted);font-size:.8rem}
+.good b{display:block;padding:12px 14px;font-weight:600}
+.note{color:var(--muted);margin:16px 0 0}
+
+/* video */
+.video{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:28px;align-items:center}
+.vbox{position:relative;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:var(--deep);border:1px solid var(--line);width:100%}
+.vbox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vplay{position:absolute;inset:0;width:100%;border:0;background:linear-gradient(180deg,#26333f,#0c1015);color:var(--deep-fg);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font:inherit;font-weight:700}
+.vplay i{width:68px;height:68px;border-radius:50%;background:var(--brass);display:grid;place-items:center}
+.vplay i::after{content:"";border-left:20px solid var(--brass-ink);border-top:12px solid transparent;border-bottom:12px solid transparent;margin-left:5px}
+.video p{color:var(--muted);margin:0 0 16px}
+@media (max-width:640px){.video{grid-template-columns:1fr}.vbox{max-width:280px;margin:0 auto}}
+
+/* footer */
+footer{background:var(--deep);color:var(--deep-fg);padding-block:44px 36px}
+footer h2{color:var(--deep-fg)}
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:26px}
+.info h3{font-size:1.05rem;color:var(--brass);margin-bottom:8px}
+.info p{margin:0 0 6px}
+.info a.link{color:var(--deep-fg);text-underline-offset:3px}
+.hours{width:100%;border-collapse:collapse}
+.hours td{padding:3px 0}
+.hours td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.copy{margin-top:34px;padding-top:18px;border-top:1px solid #2c3743;color:#9aa3ab;font-size:.9rem}
+@media (prefers-reduced-motion:no-preference){.btn,.call-sm{transition:transform .12s}.btn:active,.call-sm:active{transform:scale(.97)}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Мастерская Золотой ключик">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#d6a93f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="16" r="5.5"/><path d="M14.5 16H29M24 16v5M28 16v4"/></svg>
+      <span>Золотой ключик</span>
+    </a>
+    <a class="call-sm" href="tel:+79005964577">Позвонить</a>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="wrap">
+      <div class="eyebrow">Мастерская · Липецк</div>
+      <h1>Дубликат ключа <em>за пару минут</em></h1>
+      <p class="lead">Изготовим дубликаты ключей и домофонных ключей, наклеим защитную плёнку на телефон. А ещё у нас есть зарядки и USB-шнуры.</p>
+      <div class="cta">
+        <a class="btn btn-main" href="tel:+79005964577">8 900 596-45-77</a>
+        <a class="btn btn-ghost" href="https://wa.me/79005964577" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">Пн–Пт с 9:00 до 17:00</span></div>
+    </div>
+  </div>
+
+  <section id="services">
+    <div class="wrap">
+      <h2>Что мы делаем</h2>
+      <div class="cards">
+        <div class="card">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="16" r="5.5"/><path d="M14.5 16H29M24 16v5M28 16v4"/></svg>
+          <h3>Дубликаты ключей</h3>
+          <p>Копии обычных ключей от квартиры, замков и почтовых ящиков.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="22" height="14" rx="7"/><circle cx="12" cy="16" r="2.2"/><path d="M18 16h5"/></svg>
+          <h3>Домофонные ключи</h3>
+          <p>Таблетки для подъезда: сделаем копию и запишем нужный код.</p>
+        </div>
+        <div class="card">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="14" height="26" rx="3"/><path d="M14 25.5h4M12.5 8.5l7 7M12.5 13.5l4 4"/></svg>
+          <h3>Защитная плёнка</h3>
+          <p>Наклеим плёнку или стекло на экран телефона ровно и без пузырей.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="goods" style="padding-top:0">
+    <div class="wrap">
+      <h2>Товары в наличии</h2>
+      <div class="goods">
+        <div class="good"><div class="ph">фото скоро</div><b>Зарядные устройства</b></div>
+        <div class="good"><div class="ph">фото скоро</div><b>USB-шнуры</b></div>
+        <div class="good"><div class="ph">фото скоро</div><b>Защитные плёнки и стёкла</b></div>
+        <div class="good"><div class="ph">фото скоро</div><b>Заготовки для ключей</b></div>
+      </div>
+      <p class="note">Точное наличие и цены подскажем по телефону или в мессенджере.</p>
+    </div>
+  </section>
+
+  <section id="video" style="padding-top:0">
+    <div class="wrap">
+      <h2>Как мы работаем</h2>
+      <div class="video">
+        <div class="vbox" id="vbox">
+          <button class="vplay" id="vplay" type="button"><i></i><span>Смотреть видео</span></button>
+        </div>
+        <div>
+          <p>Короткий видеообзор нашей работы. Видео загрузится только после нажатия, поэтому сайт остаётся быстрым.</p>
+          <a class="btn btn-ghost" style="color:var(--fg);border-color:var(--line)" href="https://vk.ru/clip-236241268_456239028?c=1" target="_blank" rel="noopener">Открыть во ВКонтакте</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer id="contacts">
+  <div class="wrap">
+    <h2>Как нас найти</h2>
+    <div class="info">
+      <div>
+        <h3>Адрес</h3>
+        <p>398027, г. Липецк,<br>ул. Хорошавина, д. 23</p>
+        <p><a class="link" href="https://yandex.ru/maps/?text=%D0%9B%D0%B8%D0%BF%D0%B5%D1%86%D0%BA%2C%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%20%D0%A5%D0%BE%D1%80%D0%BE%D1%88%D0%B0%D0%B2%D0%B8%D0%BD%D0%B0%2C%2023" target="_blank" rel="noopener">Построить маршрут в Яндекс Картах</a></p>
+        <p><a class="link" href="https://2gis.ru/lipetsk/search/%D1%83%D0%BB%D0%B8%D1%86%D0%B0%20%D0%A5%D0%BE%D1%80%D0%BE%D1%88%D0%B0%D0%B2%D0%B8%D0%BD%D0%B0%2023" target="_blank" rel="noopener">Открыть в 2ГИС</a></p>
+      </div>
+      <div>
+        <h3>График работы</h3>
+        <table class="hours">
+          <tr><td>Понедельник – пятница</td><td>9:00 – 17:00</td></tr>
+          <tr><td>Суббота, воскресенье</td><td>выходной</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Связь</h3>
+        <p>Телефон: <a class="link" href="tel:+79005964577">8 900 596-45-77</a></p>
+        <p><a class="link" href="https://wa.me/79005964577" target="_blank" rel="noopener">Написать в WhatsApp</a></p>
+      </div>
+    </div>
+    <div class="copy">© Мастерская «Золотой ключик», Липецк</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // Липецк = МСК (UTC+3), без перехода на летнее время
+  var m=new Date(Date.now()+3*3600e3), d=m.getUTCDay(), h=m.getUTCHours()+m.getUTCMinutes()/60;
+  var open=d>=1&&d<=5&&h>=9&&h<17, el=document.getElementById('status');
+  el.classList.toggle('open',open);
+  document.getElementById('status-text').textContent=open?'Сейчас открыто до 17:00':'Сейчас закрыто. Работаем пн–пт с 9:00 до 17:00';
+  // Видео ВК подгружается только по нажатию
+  document.getElementById('vplay').addEventListener('click',function(){
+    var f=document.createElement('iframe');
+    f.src='https://vk.com/video_ext.php?oid=-236241268&id=456239028&hd=2';
+    f.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';
+    f.allowFullscreen=true; f.title='Видеообзор работы мастерской';
+    document.getElementById('vbox').replaceChildren(f);
+  });
+})();
+</script>

@@ -1,0 +1,13 @@
+name = "zolotoy-klyuchik"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zolotoy-klyuchik"
+database_id = "LOCAL-REPLACE-AFTER-CREATE"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "zolotoy-klyuchik-images"

@@ -1,0 +1,12 @@
+{
+  "name": "zolotoy-klyuchik",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:init": "wrangler d1 migrations apply DB --local",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": { "hono": "^4" },
+  "devDependencies": { "wrangler": "^4", "typescript": "^5", "@cloudflare/workers-types": "^5" }
+}
