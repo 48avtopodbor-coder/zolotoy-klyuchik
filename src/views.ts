@@ -144,6 +144,92 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   <div class="copy">© Мастерская «Золотой ключик», Липецк</div>
 </div></footer>
 
+<button class="cw-btn" id="cw-btn" type="button" aria-label="Напишите нам" aria-expanded="false" aria-controls="cw-panel">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+  <span class="cw-label">Напишите нам</span><i class="cw-dot" id="cw-dot" hidden></i>
+</button>
+<section class="cw-panel" id="cw-panel" hidden aria-label="Чат с мастерской">
+  <header><div><b>Золотой ключик</b><small id="cw-sub">Ответим в рабочее время</small></div><button type="button" id="cw-close" aria-label="Закрыть чат">×</button></header>
+  <div class="cw-log" id="cw-log" role="log" aria-live="polite"></div>
+  <details class="cw-who" id="cw-who"><summary>Оставить имя и телефон (по желанию)</summary>
+    <input id="cw-name" type="text" placeholder="Ваше имя" maxlength="80" autocomplete="name">
+    <input id="cw-phone" type="tel" placeholder="Телефон, чтобы мы могли перезвонить" maxlength="30" autocomplete="tel" inputmode="tel">
+  </details>
+  <form class="cw-form" id="cw-form">
+    <textarea id="cw-text" rows="1" maxlength="1000" placeholder="Напишите сообщение…" aria-label="Сообщение"></textarea>
+    <button type="submit" aria-label="Отправить">➤</button>
+  </form>
+</section>
+<script>
+(function(){
+  var btn=document.getElementById('cw-btn'),panel=document.getElementById('cw-panel'),log=document.getElementById('cw-log'),
+      form=document.getElementById('cw-form'),text=document.getElementById('cw-text'),dot=document.getElementById('cw-dot'),
+      sub=document.getElementById('cw-sub'),seen={},lastId=0,cid=null,timer=null,lastAct=0,openP=false;
+  try{cid=localStorage.getItem('cw_cid')}catch(e){}
+  try{lastAct=+localStorage.getItem('cw_act')||0}catch(e){}
+  function save(){try{localStorage.setItem('cw_cid',cid);localStorage.setItem('cw_act',String(lastAct))}catch(e){}}
+  function bubble(m){
+    if(seen[m.id])return;seen[m.id]=1;if(m.id>lastId&&!m.local)lastId=Math.max(lastId,m.id);
+    var d=document.createElement('div');d.className='cw-msg '+(m.v?'me':'them');d.textContent=m.text;log.appendChild(d);
+    log.scrollTop=log.scrollHeight;
+  }
+  function hello(){
+    var d=document.createElement('div');d.className='cw-msg them';
+    d.textContent=window.__open?'Здравствуйте! Напишите, чем помочь.':'Здравствуйте! Сейчас мы не на связи. Оставьте сообщение и номер телефона, ответим в рабочее время.';
+    log.appendChild(d);
+  }
+  function poll(){
+    if(!cid)return;
+    fetch('/api/chat/poll?cid='+cid+'&after='+lastId,{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
+      var gotNew=false;
+      (j.messages||[]).forEach(function(m){
+        if(!seen[m.id]){bubble(m);if(!m.v)gotNew=true}
+        if(m.id>lastId)lastId=m.id;
+      });
+      if(gotNew&&!openP){dot.hidden=false}
+    }).catch(function(){});
+  }
+  function schedule(){
+    clearInterval(timer);
+    if(!cid)return;
+    var idle=Date.now()-lastAct;
+    if(openP&&idle<15*60e3)timer=setInterval(function(){if(!document.hidden)poll()},4000);
+    else if(!openP&&idle<30*60e3)timer=setInterval(function(){if(!document.hidden)poll()},15000);
+  }
+  function open(){
+    openP=true;panel.hidden=false;btn.setAttribute('aria-expanded','true');dot.hidden=true;btn.classList.add('cw-hide');
+    if(!log.children.length)hello();
+    if(cid)poll();
+    schedule();setTimeout(function(){text.focus()},50);
+  }
+  function close(){openP=false;panel.hidden=true;btn.setAttribute('aria-expanded','false');btn.classList.remove('cw-hide');schedule();btn.focus()}
+  btn.addEventListener('click',open);
+  document.getElementById('cw-close').addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&openP)close()});
+  text.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
+  text.addEventListener('input',function(){text.style.height='auto';text.style.height=Math.min(text.scrollHeight,110)+'px'});
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    var t=text.value.trim();if(!t)return;
+    var sendBtn=form.querySelector('button');sendBtn.disabled=true;
+    fetch('/api/chat/send',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      cid:cid,text:t,name:document.getElementById('cw-name').value,phone:document.getElementById('cw-phone').value})})
+    .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
+    .then(function(x){
+      if(!x.ok){var d=document.createElement('div');d.className='cw-msg err';d.textContent=x.j.error||'Не удалось отправить. Позвоните нам.';log.appendChild(d);log.scrollTop=log.scrollHeight;return}
+      cid=x.j.cid;lastAct=Date.now();save();
+      bubble({id:x.j.id,v:1,text:t,local:1});text.value='';text.style.height='auto';
+      if(!x.j.delivered){var d=document.createElement('div');d.className='cw-msg err';d.textContent='Сообщение сохранено, но пока не дошло до мастера. Позвоните нам, пожалуйста.';log.appendChild(d)}
+      var who=document.getElementById('cw-who');if(who)who.open=false;
+      schedule();
+    })
+    .catch(function(){var d=document.createElement('div');d.className='cw-msg err';d.textContent='Нет связи. Проверьте интернет или позвоните нам.';log.appendChild(d)})
+    .then(function(){sendBtn.disabled=false;text.focus()});
+  });
+  if(cid&&Date.now()-lastAct<30*60e3){schedule();poll()}
+})();
+</script>
+
 <script type="application/json" id="hours-data">${hoursJson}</script>
 <script>
 (function(){
@@ -165,7 +251,7 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     for(var i=1;i<=7;i++){var n=H.days[(di+i)%7];if(!n.off){text='Сейчас закрыто. Откроемся '+(i===1?'завтра':nm[(di+i)%7])+' в '+f(n.open);break}}
     if(!text)text='Сейчас закрыто';
   }
-  var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;
+  var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;
 
   /* счётчик фото на карточке товара */
   document.querySelectorAll('.gal').forEach(function(g){

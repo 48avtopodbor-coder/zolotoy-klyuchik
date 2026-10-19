@@ -265,7 +265,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 </form>`, flash);
 }
 
-export function leadsPage(list: Lead[], flash?: string): string {
+export function leadsPage(list: Lead[], flash?: string, error?: string): string {
   const fmt = (t: number) => new Date((t + 3 * 3600) * 1000).toISOString().slice(0, 16).replace('T', ' ');
   const rows = list.length ? list.map((l) => `<div class="lead-item">
   <div class="meta">${fmt(l.created_at)} (МСК)${l.sent ? '' : ' · <span style="color:#ff9b8a">не ушла в Telegram</span>'}</div>
@@ -273,5 +273,10 @@ export function leadsPage(list: Lead[], flash?: string): string {
   ${l.message ? `<p>${esc(l.message)}</p>` : ''}
   <form method="post" action="/admin/leads/${l.id}/delete" onsubmit="return confirm('Удалить заявку?')" style="margin-top:8px"><button class="abtn sm danger" type="submit">Удалить</button></form>
 </div>`).join('') : '<p class="hint">Заявок пока нет.</p>';
-  return layout('leads', 'Заявки', `<p class="sub">Последние 100 заявок с сайта. Новые также приходят вам в Telegram.</p><div class="card">${rows}</div>`, flash);
+  return layout('leads', 'Заявки', `<p class="sub">Последние 100 заявок с сайта. Новые также приходят вам в Telegram.</p>
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+<div class="card">${rows}</div>
+<form class="card" method="post" action="/admin/telegram/setup"><b>Чат с сайта в Telegram</b>
+<p class="hint">Нажмите один раз, чтобы ответы из Telegram доходили до посетителей. Повторять нужно только если меняли бота.</p>
+<button class="abtn sm" type="submit">Подключить чат к Telegram</button></form>`, flash);
 }

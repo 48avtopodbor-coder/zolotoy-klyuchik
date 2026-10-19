@@ -6,7 +6,7 @@ import { homePage, type Product, type Video } from './views';
 import * as A from './admin';
 
 type Env = {
-  Bindings: { DB: D1Database; ADMIN_PASSWORD: string; TELEGRAM_BOT_TOKEN?: string; TELEGRAM_CHAT_ID?: string };
+  Bindings: { DB: D1Database; ADMIN_PASSWORD: string; TELEGRAM_BOT_TOKEN?: string; TELEGRAM_CHAT_ID?: string; TELEGRAM_WEBHOOK_SECRET?: string; TELEGRAM_API?: string };
   Variables: { st: Settings };
 };
 type C = Context<Env>;
@@ -172,6 +172,114 @@ app.post('/api/lead', async (c) => {
   }
   if (sent) await c.env.DB.prepare('UPDATE leads SET sent=1 WHERE id=?').bind(id).run();
   return sent ? c.json({ ok: true }) : c.json({ error: 'Попробуйте ещё раз или позвоните нам.' }, 502);
+});
+
+
+/* ---------- чат на сайте <-> Telegram ---------- */
+
+type Bind = Env['Bindings'];
+const tgApi = (env: Bind) => env.TELEGRAM_API ?? 'https://api.telegram.org';
+/** TELEGRAM_CHAT_ID может содержать несколько id через запятую: все получают сообщения и могут отвечать. */
+const tgRecipients = (env: Bind): number[] =>
+  (env.TELEGRAM_CHAT_ID ?? '').split(',').map((x) => Number(x.trim())).filter((n) => Number.isFinite(n) && n !== 0);
+
+async function tgCall<T = unknown>(env: Bind, method: string, body: unknown): Promise<T | null> {
+  if (!env.TELEGRAM_BOT_TOKEN) return null;
+  try {
+    const r = await fetch(`${tgApi(env)}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j = (await r.json()) as { ok: boolean; result: T };
+    return j.ok ? j.result : null;
+  } catch { return null; }
+}
+
+const sameOrigin = (c: C) => {
+  const o = c.req.header('origin');
+  return !o || new URL(o).host === new URL(c.req.url).host;
+};
+
+app.post('/api/chat/send', async (c) => {
+  if (!sameOrigin(c)) return c.json({ error: 'forbidden' }, 403);
+  let b: Record<string, unknown>;
+  try { b = await c.req.json(); } catch { return c.json({ error: 'Некорректный запрос' }, 400); }
+  const text = String(b.text ?? '').trim().slice(0, 1000);
+  if (!text) return c.json({ error: 'Напишите сообщение' }, 400);
+  const name = String(b.name ?? '').trim().slice(0, 80);
+  const phone = String(b.phone ?? '').trim().slice(0, 30);
+  const db = c.env.DB;
+  const ipHash = await hashIp(c.req.header('cf-connecting-ip') ?? 'unknown');
+
+  const perIp = await db.prepare(
+    'SELECT COUNT(*) AS n FROM chat_messages m JOIN chats ch ON ch.id = m.chat_id WHERE ch.ip_hash=? AND m.from_visitor=1 AND m.created_at > unixepoch() - 3600',
+  ).bind(ipHash).first<{ n: number }>();
+  if ((perIp?.n ?? 0) >= 30) return c.json({ error: 'Слишком много сообщений. Позвоните нам, пожалуйста.' }, 429);
+
+  let cid = String(b.cid ?? '');
+  let chat = /^[0-9a-f]{32}$/.test(cid) ? await db.prepare('SELECT id, name, phone FROM chats WHERE id=?').bind(cid).first<{ id: string; name: string; phone: string }>() : null;
+  const first = !chat;
+  if (!chat) {
+    cid = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, '0')).join('');
+    await db.prepare('INSERT INTO chats (id, name, phone, ip_hash) VALUES (?,?,?,?)').bind(cid, name, phone, ipHash).run();
+    chat = { id: cid, name, phone };
+    if (Math.random() < 0.05) await db.prepare('DELETE FROM chat_messages WHERE created_at < unixepoch() - 2592000').run(); // чистим переписку старше 30 дней
+  } else if ((name && name !== chat.name) || (phone && phone !== chat.phone)) {
+    chat = { id: cid, name: name || chat.name, phone: phone || chat.phone };
+    await db.prepare('UPDATE chats SET name=?, phone=? WHERE id=?').bind(chat.name, chat.phone, cid).run();
+  }
+
+  const ins = await db.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text) VALUES (?,1,?)').bind(cid, text).run();
+  const id = ins.meta.last_row_id as number;
+
+  const who = [chat.name, chat.phone].filter(Boolean).map(escHtml).join(' · ');
+  const head = first || who ? `💬 <b>Чат с сайта</b> #${cid.slice(0, 4)}${who ? `\n${who}` : ''}\n\n` : `💬 #${cid.slice(0, 4)}\n`;
+  const msg = `${head}${escHtml(text)}${first ? '\n\n<i>Чтобы ответить, нажмите «Ответить» на это сообщение.</i>' : ''}`;
+  let delivered = false;
+  for (const to of tgRecipients(c.env)) {
+    const r = await tgCall<{ message_id: number }>(c.env, 'sendMessage', { chat_id: to, text: msg, parse_mode: 'HTML', disable_web_page_preview: true });
+    if (r) {
+      delivered = true;
+      await db.prepare('INSERT OR REPLACE INTO tg_map (tg_chat, tg_message, chat_id) VALUES (?,?,?)').bind(to, r.message_id, cid).run();
+    }
+  }
+  return c.json({ ok: true, cid, id, delivered });
+});
+
+app.get('/api/chat/poll', async (c) => {
+  if (!sameOrigin(c)) return c.json({ error: 'forbidden' }, 403);
+  const cid = c.req.query('cid') ?? '';
+  if (!/^[0-9a-f]{32}$/.test(cid)) return c.json({ messages: [] });
+  const after = Math.max(0, Number(c.req.query('after') ?? 0) || 0);
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, from_visitor AS v, text, created_at AS t FROM chat_messages WHERE chat_id=? AND id>? ORDER BY id LIMIT 50',
+  ).bind(cid, after).all();
+  return new Response(JSON.stringify({ messages: results }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+});
+
+/** Сюда Telegram присылает ответы сотрудника. */
+app.post('/api/telegram/webhook', async (c) => {
+  const secret = c.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret || c.req.header('x-telegram-bot-api-secret-token') !== secret) return c.text('forbidden', 403);
+  const upd = (await c.req.json().catch(() => null)) as {
+    message?: { message_id: number; text?: string; chat: { id: number }; reply_to_message?: { message_id: number } };
+  } | null;
+  const m = upd?.message;
+  if (!m?.text) return c.text('ok');
+  if (!tgRecipients(c.env).includes(m.chat.id)) return c.text('ok'); // чужим не отвечаем
+  if (m.text.startsWith('/start')) {
+    await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, text: 'Здесь будут сообщения из чата на сайте. Чтобы ответить посетителю, нажмите «Ответить» на его сообщение.' });
+    return c.text('ok');
+  }
+  const link = m.reply_to_message
+    ? await c.env.DB.prepare('SELECT chat_id FROM tg_map WHERE tg_chat=? AND tg_message=?').bind(m.chat.id, m.reply_to_message.message_id).first<{ chat_id: string }>()
+    : null;
+  if (!link) {
+    await tgCall(c.env, 'sendMessage', { chat_id: m.chat.id, reply_to_message_id: m.message_id, text: 'Не понял, кому отправить. Нажмите «Ответить» на сообщение посетителя.' });
+    return c.text('ok');
+  }
+  await c.env.DB.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text) VALUES (?,0,?)').bind(link.chat_id, m.text.slice(0, 2000)).run();
+  await tgCall(c.env, 'setMessageReaction', { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: 'emoji', emoji: '👍' }] });
+  return c.text('ok');
 });
 
 /* ---------- вход в админку ---------- */
@@ -411,9 +519,18 @@ app.post('/admin/password', async (c) => {
 
 /* ---------- заявки ---------- */
 
+app.post('/admin/telegram/setup', async (c) => {
+  const secret = c.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret || !c.env.TELEGRAM_BOT_TOKEN) return c.redirect('/admin/leads?err=tg');
+  const ok = await tgCall(c.env, 'setWebhook', {
+    url: `${new URL(c.req.url).origin}/api/telegram/webhook`, secret_token: secret, allowed_updates: ['message'], drop_pending_updates: true,
+  });
+  return c.redirect(ok ? '/admin/leads?saved=1' : '/admin/leads?err=tg');
+});
+
 app.get('/admin/leads', async (c) => {
   const { results } = await c.env.DB.prepare('SELECT id,name,phone,message,sent,created_at FROM leads ORDER BY id DESC LIMIT 100').all<A.Lead>();
-  return c.html(A.leadsPage(results, A.flashText(q(c))));
+  return c.html(A.leadsPage(results, A.flashText(q(c)), q(c).err ? 'Не удалось подключить чат к Telegram. Проверьте токен бота и повторите.' : undefined));
 });
 app.post('/admin/leads/:id/delete', async (c) => {
   await c.env.DB.prepare('DELETE FROM leads WHERE id=?').bind(Number(c.req.param('id'))).run();
