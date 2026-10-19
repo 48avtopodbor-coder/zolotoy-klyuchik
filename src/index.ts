@@ -104,7 +104,7 @@ const files = (form: FormData, name: string): File[] =>
 
 app.get('/', async (c) => {
   const [products, videos, st, services, special] = await Promise.all([loadProducts(c.env.DB), loadVideos(c.env.DB), loadSettings(c.env.DB), loadServices(c.env.DB), loadSpecial(c.env.DB)]);
-  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, site: st.site, services, special, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
+  return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, site: st.site, chat: st.chat, services, special, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
 });
 
 app.get('/img/:key', async (c) => {
@@ -214,6 +214,10 @@ function sniffChatImage(b: Uint8Array): 'image/jpeg' | 'image/png' | null {
   if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png';
   return null;
 }
+/** Какие автоответы посетитель уже получил на странице (страница присылает идентификаторы, мастер видит пометку в Telegram). */
+const AUTO_LABELS: Record<string, string> = {
+  hours: 'график работы', price: 'цены', way: 'адрес и как добраться', contacts: 'телефон и мессенджеры', away: 'время открытия (сейчас закрыто)',
+};
 const MAX_CHAT_PHOTO = 900 * 1000; // страница сама сжимает фото до 200–400 КБ, больше не принимаем
 
 function fromBase64(b64: string): Uint8Array {
@@ -260,7 +264,7 @@ app.post('/api/chat/send', async (c) => {
   try {
     if ((c.req.header('content-type') ?? '').startsWith('multipart/form-data')) {
       const f = await c.req.formData();
-      for (const k of ['cid', 'text', 'name', 'phone']) b[k] = f.get(k) ?? '';
+      for (const k of ['cid', 'text', 'name', 'phone', 'auto']) b[k] = f.get(k) ?? '';
       const p = f.get('photo');
       if (p && typeof p !== 'string' && p.size > 0) photo = p;
     } else b = await c.req.json();
@@ -324,7 +328,9 @@ app.post('/api/chat/send', async (c) => {
   const icon = pic ? '📷' : '💬';
   const head = first || who ? `${icon} <b>Чат с сайта</b> #${cid.slice(0, 4)}${who ? `\n${who}` : ''}\n\n` : `${icon} #${cid.slice(0, 4)}\n`;
   const tail = first ? '\n\n<i>Чтобы ответить, нажмите «Ответить» на это сообщение.</i>' : '';
-  const msg = `${head}${escHtml(text)}${tail}`;
+  const autos = [...new Set(String(b.auto ?? '').split(',').map((x) => x.trim()).filter((x) => x in AUTO_LABELS))].slice(0, 4);
+  const autoLine = autos.length ? `\n\n<i>🤖 Посетитель уже получил автоответ: ${autos.map((x) => AUTO_LABELS[x]).join(', ')}.</i>` : '';
+  const msg = `${head}${escHtml(text)}${autoLine}${tail}`;
   let delivered = false;
   const remember = (to: number, mid: number) => db.prepare('INSERT OR REPLACE INTO tg_map (tg_chat, tg_message, chat_id) VALUES (?,?,?)').bind(to, mid, cid).run();
   for (const to of tgRecipients(c.env)) {
@@ -834,7 +840,12 @@ app.get('/admin/chats', async (c) => {
   const msgs = ids.length
     ? (await db.prepare(`SELECT chat_id, from_visitor AS v, text, created_at AS t, photo AS p FROM chat_messages WHERE chat_id IN (${ids.map(() => '?').join(',')}) ORDER BY id`).bind(...ids).all<A.ChatMsg>()).results
     : [];
-  return c.html(A.chatsPage(list, msgs, A.flashText(q(c))));
+  return c.html(A.chatsPage(list, msgs, A.flashText(q(c)), c.get('st').chat));
+});
+app.post('/admin/chats/settings', async (c) => {
+  const f = await c.req.formData();
+  await saveSetting(c.env.DB, 'chat', { auto: !!f.get('auto') });
+  return c.redirect('/admin/chats?saved=1');
 });
 app.get('/admin/chat-photo/:key', async (c) => {
   const key = c.req.param('key');

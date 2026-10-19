@@ -1,5 +1,5 @@
 import { esc, rub, shell, SERVICE_ICONS, type Service } from './views';
-import { DAY_LONG, mskToday, ruDate, type Contacts, type Hours, type Site, type SpecialDay } from './settings';
+import { DAY_LONG, mskToday, ruDate, type ChatCfg, type Contacts, type Hours, type Site, type SpecialDay } from './settings';
 import { SUN_LIB, type ThemeCfg } from './theme';
 
 export interface AdminProduct {
@@ -325,7 +325,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 export interface ChatRow { id: string; name: string; phone: string; blocked: number; last: number | null }
 export interface ChatMsg { chat_id: string; v: number; text: string; t: number; p: string | null }
 
-export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): string {
+export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash: string | undefined, chat: ChatCfg): string {
   const fmt = (t: number) => new Date((t + 3 * 3600) * 1000).toISOString().slice(0, 16).replace('T', ' ');
   const rows = list.length ? list.map((ch) => {
     const mine = msgs.filter((m) => m.chat_id === ch.id);
@@ -336,6 +336,10 @@ export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash?: string): str
   }).join('') : '<p class="hint">Переписок пока нет.</p>';
   return layout('chats', 'Чаты', `<p class="sub">Переписки с посетителями через чат на сайте. Отвечать нужно в Telegram, нажав «Ответить» на сообщение. Переписки старше 30 дней удаляются сами.</p>
 <style>.chat-item{border-top:1px solid var(--line);padding:0.75rem 0}.chat-item:first-child{border-top:0}.chat-item summary{cursor:pointer}.meta{color:var(--muted);font-size:.85rem}.cph{display:block;max-width:100%;max-height:14rem;border-radius:.375rem;margin:.25rem 0;border:1px solid var(--line)}.chat-log{display:flex;flex-direction:column;gap:0.5rem;margin:0.75rem 0}.cm{max-width:88%;padding:0.5rem 0.75rem;border-radius:0.625rem;overflow-wrap:anywhere;white-space:pre-wrap}.cm small{display:block;color:var(--muted);font-size:.75rem}.cm.v{background:var(--bg);border:1px solid var(--line);align-self:flex-start}.cm.s{background:rgba(226,180,79,.15);border:1px solid var(--gold);align-self:flex-end}</style>
+<form class="card f" method="post" action="/admin/chats/settings"><b>Автоответы в чате</b>
+<p class="hint">Чат сам отвечает на частые вопросы: график работы, адрес, цены, телефон. Ответы собираются из данных сайта, поэтому всегда актуальны. Когда мастерская закрыта, чат сообщает, во сколько она откроется. Вы всё равно получаете каждое сообщение в Telegram, с пометкой, что посетитель уже получил автоответ.</p>
+<div class="chk"><input id="auto" name="auto" type="checkbox" value="1"${chat.auto ? ' checked' : ''}><label for="auto">Включить автоответы</label></div>
+<button class="abtn sm gold" type="submit">Сохранить</button></form>
 <div class="card">${rows}</div>`, flash);
 }
 

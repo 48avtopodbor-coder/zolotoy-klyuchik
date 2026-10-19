@@ -11,7 +11,9 @@ export interface Site {
   /** Когда сайт светлый, а когда тёмный: по солнцу в Липецке, по часам (МСК) или всегда одинаково. */
   theme: ThemeCfg;
 }
-export interface Settings { hours: Hours; contacts: Contacts; site: Site; pw: string | null; ver: number }
+/** Автоответы чата: отвечают на частые вопросы (график, адрес, цены, телефон) и сообщают время открытия. */
+export interface ChatCfg { auto: boolean }
+export interface Settings { hours: Hours; contacts: Contacts; site: Site; chat: ChatCfg; pw: string | null; ver: number }
 
 export const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const DAY_LONG = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -30,6 +32,7 @@ export const DEFAULT_SITE: Site = {
   ba: { before: null, after: null, caption: 'Защитная плёнка: до и после' },
   theme: { mode: 'sun', from: '07:00', to: '19:00' },
 };
+export const DEFAULT_CHAT: ChatCfg = { auto: true };
 export const DEFAULT_CONTACTS: Contacts = {
   phones: ['8 900 596-45-77'],
   whatsapp: '',
@@ -47,6 +50,7 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
     hours: parse('hours', DEFAULT_HOURS),
     contacts: parse('contacts', DEFAULT_CONTACTS),
     site: parse('site', DEFAULT_SITE),
+    chat: parse('chat', DEFAULT_CHAT),
     pw: m.get('admin_pw') ?? null,
     ver: Number(m.get('session_ver') ?? 0),
   };

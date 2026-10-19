@@ -1,6 +1,6 @@
 import { CSS } from './styles';
 import { themeHead } from './theme';
-import { type Contacts, type Hours, type Site, type SpecialDay, addDaysStr, hoursRows, mskToday, phoneTel, specialLine, waNumber } from './settings';
+import { type ChatCfg, type Contacts, type Hours, type Site, type SpecialDay, addDaysStr, hoursRows, mskToday, phoneTel, specialLine, waNumber } from './settings';
 
 export interface Product {
   id: number;
@@ -76,6 +76,15 @@ export function servicePrice(s: Service): string {
   const note = s.show_note && s.note.trim() ? `<span class="svc-note">${esc(s.note.trim())}</span>` : '';
   if (s.mode === 'sale') return `<div class="svc-price sale">${s.old_price != null && s.old_price > s.price ? `<s>${rub(s.old_price)}</s>` : ''}<span class="tag-sale">Акция</span>${rub(s.price)}${note}</div>`;
   return `<div class="svc-price">${s.mode === 'from' ? '<span>от</span> ' : ''}${rub(s.price)}${note}</div>`;
+}
+
+/** Цена услуги одной строкой для автоответа в чате. */
+function chatPrice(s: Service): string {
+  if (s.price == null || s.mode === 'none') return '';
+  const base = s.mode === 'from' ? `от ${rub(s.price)}`
+    : s.mode === 'sale' ? `${rub(s.price)} (акция${s.old_price != null && s.old_price > s.price ? `, было ${rub(s.old_price)}` : ''})`
+    : rub(s.price);
+  return `${s.title}: ${base}${s.show_note && s.note.trim() ? `, ${s.note.trim()}` : ''}`;
 }
 
 function serviceRow(s: Service): string {
@@ -160,8 +169,8 @@ function videoCard(v: Video, i: number): string {
   return `<div class="vcard"><div class="vbox" data-oid="${esc(v.oid)}" data-vid="${esc(v.vid)}"><button class="vplay" type="button" aria-label="Смотреть видео ${i + 1}">${cover}<i></i></button></div><a class="vlink" href="${esc(v.url)}" target="_blank" rel="noopener">Открыть во ВКонтакте</a></div>`;
 }
 
-export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string; special: SpecialDay[]; site: Site }): string {
-  const { products, videos, hours, contacts, services, origin, site } = d;
+export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string; special: SpecialDay[]; site: Site; chat: ChatCfg }): string {
+  const { products, videos, hours, contacts, services, origin, site, chat } = d;
   const today = mskToday();
   const upcoming = d.special.filter((x) => x.date >= today && x.date <= addDaysStr(today, 120));
   const soon = upcoming.filter((x) => x.date <= addDaysStr(today, 7)).map((x) => specialLine(x, hours)).filter((x): x is string => !!x);
@@ -314,6 +323,12 @@ ${notice}
     address: contacts.address,
     ya: `https://yandex.ru/maps/?text=${mapQ}`,
     gis: `https://2gis.ru/lipetsk/search/${mapQ}`,
+    auto: chat.auto,
+    prices: services.map(chatPrice).filter(Boolean),
+    special: later.slice(0, 4),
+    phones: contacts.phones.map((p) => [p, `tel:${phoneTel(p)}`]),
+    wa: wa ? `https://wa.me/${wa}` : '',
+    tg: tg ? `https://t.me/${tg}` : '',
   }).replace(/</g, '\\u003c')}</script>
 <script>
 (function(){
@@ -323,7 +338,7 @@ ${notice}
       who=$('cw-who'),nameI=$('cw-name'),phoneI=$('cw-phone'),
       file=$('cw-file'),clip=$('cw-clip'),att=$('cw-attach'),prev=$('cw-prev'),pinfo=$('cw-pinfo'),pdel=$('cw-pdel'),
       sendBtn=form.querySelector('button[type=submit]');
-  var photo=null,photoUrl=null,prepping=false;
+  var photo=null,photoUrl=null,prepping=false,autoOn=!!D.auto,done={};
   var seen={},lastId=0,cid=null,timer=null,lastAct=0,openP=false,unread=0,recent=false,waiting=false,hinted=false,hintTimer=null,
       chips=null,baseTitle=document.title;
   try{cid=localStorage.getItem('cw_cid')}catch(e){}
@@ -352,11 +367,55 @@ ${notice}
     if(m.tick){var k=el('span','cw-tick','✓');k.title='Доставлено мастеру';d.appendChild(k)}
     log.appendChild(d);scroll();
   }
-  function note(txt,links){
-    var d=el('div','cw-msg them auto');d.appendChild(el('span','cw-from','Подсказка'));
+  function note(txt,links,label,acts){
+    var d=el('div','cw-msg them auto');d.appendChild(el('span','cw-from',label||'Подсказка'));
     d.appendChild(el('span','',txt));
-    (links||[]).forEach(function(l){var a=el('a','cw-link',l[0]);a.href=l[1];a.target='_blank';a.rel='noopener';d.appendChild(a)});
+    (links||[]).forEach(function(l){var a=el('a','cw-link',l[0]);a.href=l[1];if(l[1].indexOf('http')===0){a.target='_blank';a.rel='noopener'}d.appendChild(a)});
+    (acts||[]).forEach(function(x){var b=el('button','cw-link',x[0]);b.type='button';b.addEventListener('click',x[1]);d.appendChild(b)});
     log.appendChild(d);scroll();
+  }
+
+  /* автоответы: тексты собираются из данных сайта (график с особыми днями, адрес, цены, контакты) */
+  var TOP=[
+    ['hours',/график|режим работ|часы работ|время работ|расписани|до скольки|с скольки|во сколько (вы |мастерск)?(открыва|закрыва|работа)|когда (вы |мастерск)?(открыва|закрыва|работа)|работаете|работает ли|открыты|открыто|закрыты|закрыто|выходн|перерыв|обед/],
+    ['price',/ско(лько|ка|ко) (это )?(будет )?сто(ит|ить)|цена|цены|цену|цене|стоимост|прайс|почем|по чем|расценк|сколько (с меня|денег|надо|нужно|берете|возьмете)/],
+    ['way',/адрес|где (вы )?(находит|расположен|нах)|где вы|где (ваша |ваш )?(мастерск|офис)|как (до вас |к вам )?(добрат|доехат|дойти|пройти|найти|проехат)|как вас найти|на карте|маршрут|ориентир|куда (ехать|идти|подъехать)/],
+    ['contacts',/телефон|позвонит|позвоню|номер для связи|ваш номер|whatsapp|ватсап|вотсап|вацап|telegram|телеграм|связаться/]
+  ];
+  function answer(tp,label){
+    done[tp]=1;label=label||'Автоответ';
+    if(tp==='hours'){
+      var st=window.__status||'';
+      note((st?st+'.\\n\\n':'')+D.hours.map(function(r){return r.label+': '+r.value}).join('\\n')+((D.special&&D.special.length)?'\\n\\nОсобые дни:\\n'+D.special.join('\\n'):''),null,label);
+    }else if(tp==='price'){
+      note('Ориентировочные цены:\\n'+D.prices.join('\\n')+'\\n\\nТочную цену назовёт мастер, она зависит от ключа. Пришлите фото ключа, и мы скажем, сделаем ли и сколько.',null,label,[['Прислать фото ключа',function(){file.click()}]]);
+    }else if(tp==='way'){
+      note(D.address,[['Маршрут в Яндекс Картах',D.ya],['Открыть в 2ГИС',D.gis]],label);
+    }else if(tp==='contacts'){
+      var ln=D.phones.map(function(p){return ['Позвонить: '+p[0],p[1]]});
+      if(D.wa)ln.push(['Написать в WhatsApp',D.wa]);
+      if(D.tg)ln.push(['Написать в Telegram',D.tg]);
+      note('Телефон и мессенджеры:',ln,label);
+    }
+  }
+  function away(){
+    hinted=true;
+    note((window.__status||'Сейчас мы не на связи')+'. Ваше сообщение получено, ответим в рабочее время.'+(phoneI.value?'':' Оставьте телефон (по желанию), и мы перезвоним.'),null,'Автоответ');
+    if(!phoneI.value)who.open=true;
+  }
+  /* что ответить на сообщение: до 2 тем, каждая один раз; когда закрыто, один раз сообщаем время открытия */
+  function plan(t){
+    if(!autoOn)return {topics:[],away:false};
+    var s=t.toLowerCase().replace(/ё/g,'е'),out=[];
+    TOP.forEach(function(x){if(x[1].test(s)&&!done[x[0]])out.push(x[0])});
+    out=out.slice(0,2);
+    return {topics:out,away:!window.__open&&!hinted&&out.indexOf('hours')<0};
+  }
+  function marks(pl){return pl.topics.concat(pl.away?['away']:[]).join(',')}
+  function play(pl){
+    var delay=500;
+    pl.topics.forEach(function(tp){setTimeout(function(){answer(tp)},delay);delay+=700});
+    if(pl.away){hinted=true;setTimeout(away,delay)}
   }
   function problem(txt){log.appendChild(el('div','cw-msg err',txt));scroll()}
 
@@ -371,8 +430,8 @@ ${notice}
         removeChips();
         if(c[1]==='send'){text.value=c[0];form.requestSubmit()}
         else if(c[1]==='photo')file.click();
-        else if(c[1]==='hours')note(D.hours.map(function(r){return r.label+': '+r.value}).join('\\n'));
-        else note(D.address,[['Маршрут в Яндекс Картах',D.ya],['Открыть в 2ГИС',D.gis]]);
+        else if(c[1]==='hours')answer('hours','Подсказка');
+        else answer('way','Подсказка');
       });
       chips.appendChild(b);
     });
@@ -490,11 +549,11 @@ ${notice}
     if(prepping)return;
     var t=text.value.trim();if(!t&&!photo)return;
     sendBtn.disabled=true;removeChips();
-    var req;
+    var req,pl=plan(t);
     if(photo){
-      var fd=new FormData();fd.append('cid',cid||'');fd.append('text',t);fd.append('name',nameI.value);fd.append('phone',phoneI.value);fd.append('photo',photo,'photo.jpg');
+      var fd=new FormData();fd.append('cid',cid||'');fd.append('text',t);fd.append('name',nameI.value);fd.append('phone',phoneI.value);fd.append('auto',marks(pl));fd.append('photo',photo,'photo.jpg');
       req={method:'POST',body:fd};
-    }else req={method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cid:cid,text:t,name:nameI.value,phone:phoneI.value})};
+    }else req={method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cid:cid,text:t,name:nameI.value,phone:phoneI.value,auto:marks(pl)})};
     var sentUrl=photo?photoUrl:null;
     fetch('/api/chat/send',req)
     .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
@@ -505,7 +564,7 @@ ${notice}
       if(sentUrl)clearPhoto(true);
       if(!x.j.delivered)problem('Сообщение сохранено, но пока не дошло до мастера. Позвоните нам, пожалуйста.');
       if(phoneI.value)who.open=false;
-      armHint();schedule();
+      play(pl);armHint();schedule();
     })
     .catch(function(){problem('Нет связи. Проверьте интернет или позвоните нам.')})
     .then(function(){sendBtn.disabled=false;text.focus()});
@@ -548,7 +607,7 @@ ${notice}
     }
     if(!text)text='Сейчас закрыто';
   }
-  var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;
+  var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;window.__status=text;
 
   /* слайдер «до и после» */
   document.querySelectorAll('.ba').forEach(function(b){

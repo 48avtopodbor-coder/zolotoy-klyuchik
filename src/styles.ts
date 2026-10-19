@@ -157,6 +157,7 @@ html.vlock{overflow:hidden}
 .cw-msg.auto .cw-from{color:var(--muted)}
 .cw-tick{margin-left:0.5rem;font-size:.78rem;opacity:.7;float:right;padding-top:3px}
 .cw-link{display:block;color:var(--gold-t);margin-top:0.375rem;text-underline-offset:3px}
+button.cw-link{background:none;border:0;padding:0;font:inherit;text-align:left;text-decoration:underline;cursor:pointer}
 .cw-chips{display:flex;flex-wrap:wrap;gap:0.5rem;align-self:flex-start}
 .cw-chips button{border:1px solid var(--gold-t);background:none;color:var(--gold-t);border-radius:6.1875rem;padding:0.5rem 0.875rem;font:inherit;font-size:.88rem;cursor:pointer}
 .cw-chips button:hover{background:rgba(226,180,79,.12)}
