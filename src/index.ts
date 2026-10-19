@@ -3,7 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { makeSession, passwordOk, sessionOk, SESSION_MAX_AGE } from './auth';
 import { adminListPage, homePage, loginPage, productFormPage, type Product } from './views';
 
-type Env = { Bindings: { DB: D1Database; ADMIN_PASSWORD: string } };
+type Env = { Bindings: { DB: D1Database; ADMIN_PASSWORD: string; TELEGRAM_BOT_TOKEN?: string; TELEGRAM_CHAT_ID?: string } };
 
 const app = new Hono<Env>();
 const COOKIE = 'sid';
@@ -41,6 +41,58 @@ app.get('/img/:key', async (c) => {
 });
 
 app.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /admin\n'));
+
+
+/* ---------- заявки с сайта ---------- */
+
+const escHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+async function hashIp(ip: string): Promise<string> {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`lead:${ip}`));
+  return [...new Uint8Array(d)].slice(0, 12).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+app.post('/api/lead', async (c) => {
+  const origin = c.req.header('origin');
+  if (origin && new URL(origin).host !== new URL(c.req.url).host) return c.json({ error: 'forbidden' }, 403);
+
+  let body: Record<string, unknown>;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Некорректный запрос' }, 400); }
+
+  if (String(body.website ?? '') !== '') return c.json({ ok: true }); // ловушка для ботов
+
+  const name = String(body.name ?? '').trim().slice(0, 80);
+  const phone = String(body.phone ?? '').trim().slice(0, 30);
+  const message = String(body.message ?? '').trim().slice(0, 500);
+  const digits = phone.replace(/\D/g, '');
+  if (!name) return c.json({ error: 'Укажите имя' }, 400);
+  if (digits.length < 10 || digits.length > 15) return c.json({ error: 'Проверьте номер телефона' }, 400);
+
+  const ipHash = await hashIp(c.req.header('cf-connecting-ip') ?? 'unknown');
+  const recent = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE ip_hash=? AND created_at > unixepoch() - 3600')
+    .bind(ipHash).first<{ n: number }>();
+  if ((recent?.n ?? 0) >= 5) return c.json({ error: 'Слишком много заявок. Позвоните нам: 8 900 596-45-77' }, 429);
+
+  const ins = await c.env.DB.prepare('INSERT INTO leads (name, phone, message, ip_hash) VALUES (?,?,?,?)')
+    .bind(name, phone, message, ipHash).run();
+  const id = ins.meta.last_row_id;
+
+  const { TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: chat } = c.env;
+  let sent = false;
+  if (token && chat) {
+    const when = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    const text = `<b>Новая заявка с сайта</b>\nИмя: ${escHtml(name)}\nТелефон: ${escHtml(phone)}${message ? `\nСообщение: ${escHtml(message)}` : ''}\n<i>${when} (МСК)</i>`;
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      });
+      sent = r.ok;
+    } catch { /* заявка уже сохранена */ }
+  }
+  if (sent) await c.env.DB.prepare('UPDATE leads SET sent=1 WHERE id=?').bind(id).run();
+  return sent ? c.json({ ok: true }) : c.json({ error: 'Не удалось отправить заявку. Позвоните нам: 8 900 596-45-77' }, 502);
+});
 
 /* ---------- админка ---------- */
 

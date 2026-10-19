@@ -63,4 +63,17 @@ footer{background:#0a1824;border-top:1px solid var(--line);padding-block:40px 28
 .good .pr{margin-top:auto;padding-top:6px;font-family:var(--mono);color:var(--gold);font-weight:600}
 .good .pr.ask{color:var(--muted);font-weight:400;font-size:.85rem}
 .empty{color:var(--muted)}
+
+.lead{max-width:520px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.lead label{display:block;margin:14px 0 6px;font-weight:600}
+.lead label:first-child{margin-top:0}
+.lead input[type=text],.lead input[type=tel],.lead textarea{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:12px;font:inherit}
+.lead textarea{min-height:84px;resize:vertical}
+.lead input:focus-visible,.lead textarea:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+.lead .btn{margin-top:18px;width:100%;cursor:pointer;font:inherit;font-weight:700;border:0}
+.lead .btn:disabled{opacity:.6;cursor:default}
+.lead .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.lf-status{margin:14px 0 0;padding:10px 14px;border-radius:6px}
+.lf-status.ok{background:#12402a;border:1px solid #2d7a53;color:#c8f1da}
+.lf-status.bad{background:#4a1d17;border:1px solid #8a3a30;color:#ffd5cc}
 `;

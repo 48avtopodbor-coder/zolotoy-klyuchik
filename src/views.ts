@@ -94,6 +94,21 @@ export function homePage(products: Product[]): string {
       <a class="btn" href="https://vk.ru/clip-236241268_456239028?c=1" target="_blank" rel="noopener">Открыть во ВКонтакте</a></div>
     </div>
   </div></section>
+
+  <section id="lead" style="padding-top:0"><div class="wrap">
+    <div class="lbl">Заявка</div><h2>Оставьте номер, мы перезвоним</h2>
+    <form id="lead-form" class="lead" novalidate>
+      <label for="lf-name">Ваше имя</label>
+      <input id="lf-name" name="name" type="text" autocomplete="name" maxlength="80" required>
+      <label for="lf-phone">Телефон</label>
+      <input id="lf-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="8 900 000-00-00" maxlength="30" required>
+      <label for="lf-msg">Что нужно сделать (необязательно)</label>
+      <textarea id="lf-msg" name="message" maxlength="500" placeholder="Например: сделать два дубликата ключа от квартиры"></textarea>
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button class="btn gold" type="submit" id="lf-btn">Отправить заявку</button>
+      <p class="lf-status" id="lf-status" role="status" hidden></p>
+    </form>
+  </div></section>
 </main>
 
 <footer id="contacts"><div class="wrap">
@@ -113,6 +128,23 @@ export function homePage(products: Product[]): string {
   var m=new Date(Date.now()+3*3600e3),d=m.getUTCDay(),h=m.getUTCHours()+m.getUTCMinutes()/60;
   var open=d>=1&&d<=5&&h>=9&&h<17;
   document.getElementById('state').textContent=open?'● Сейчас открыто до 17:00':'○ Сейчас закрыто. Пн–Пт 9:00–17:00';
+
+  var lf=document.getElementById('lead-form');
+  lf.addEventListener('submit',function(e){
+    e.preventDefault();
+    var st=document.getElementById('lf-status'),btn=document.getElementById('lf-btn');
+    function say(t,ok){st.textContent=t;st.hidden=false;st.className='lf-status '+(ok?'ok':'bad')}
+    var fd=new FormData(lf),data={};fd.forEach(function(v,k){data[k]=v});
+    btn.disabled=true;btn.textContent='Отправляю…';
+    fetch('/api/lead',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)})
+    .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
+    .then(function(x){
+      if(x.ok){say('Спасибо! Заявка отправлена, мы скоро перезвоним.',true);lf.reset()}
+      else say(x.j.error||'Не удалось отправить. Позвоните нам: 8 900 596-45-77',false);
+    })
+    .catch(function(){say('Нет связи. Позвоните нам: 8 900 596-45-77',false)})
+    .then(function(){btn.disabled=false;btn.textContent='Отправить заявку'});
+  });
   document.getElementById('vplay').addEventListener('click',function(){
     var f=document.createElement('iframe');
     f.src='https://vk.com/video_ext.php?oid=-236241268&id=456239028&hd=2';
