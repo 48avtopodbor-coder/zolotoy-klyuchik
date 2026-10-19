@@ -98,4 +98,12 @@ footer{background:#0a1824;border-top:1px solid var(--line);padding-block:40px 28
 .vc-btn{position:absolute;top:42%;z-index:2;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:rgba(10,24,36,.88);color:var(--fg);font-size:1.5rem;line-height:1;cursor:pointer}
 .vc-btn.prev{left:-6px}.vc-btn.next{right:-6px}
 .vc-btn:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+.vfs{position:absolute;top:8px;right:8px;z-index:3;width:38px;height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(6,16,26,.7);color:#fff;font-size:1.15rem;line-height:1;cursor:pointer}
+.vfs:hover{background:rgba(6,16,26,.9)}
+.vfs:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.vbox:fullscreen,.vbox.vfull{width:100vw;height:100vh;max-width:none;aspect-ratio:auto;border-radius:0;border:0;background:#000}
+.vbox.vfull{position:fixed;inset:0;z-index:100;width:auto;height:auto}
+.vbox:fullscreen .vfs,.vbox.vfull .vfs{top:max(12px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px))}
+html.vlock{overflow:hidden}
 `;

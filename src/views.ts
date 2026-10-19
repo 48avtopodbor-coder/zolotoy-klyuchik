@@ -205,12 +205,28 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     var f=document.createElement('iframe');
     f.src='https://vk.com/video_ext.php?oid='+box.dataset.oid+'&id='+box.dataset.vid+'&hd=2&autoplay=1';
     f.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title='Видео мастерской';
-    box.replaceChildren(f);playing=box;stop();
+    var fs=document.createElement('button');
+    fs.type='button';fs.className='vfs';fs.setAttribute('aria-label','Развернуть на весь экран');fs.textContent='⛶';
+    box.replaceChildren(f,fs);playing=box;stop();
   });
+  /* своя кнопка «на весь экран»: на компьютере плеер ВК её не показывает */
+  function isFull(box){return document.fullscreenElement===box||box.classList.contains('vfull')}
+  function leaveFull(box){
+    box.classList.remove('vfull');document.documentElement.classList.remove('vlock');
+    if(document.fullscreenElement===box&&document.exitFullscreen)document.exitFullscreen();
+  }
+  track.addEventListener('click',function(e){
+    var fs=e.target.closest('.vfs');if(!fs)return;
+    var box=fs.parentNode;
+    if(isFull(box)){leaveFull(box);return}
+    if(box.requestFullscreen)box.requestFullscreen().catch(function(){box.classList.add('vfull');document.documentElement.classList.add('vlock')});
+    else{box.classList.add('vfull');document.documentElement.classList.add('vlock')}
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&playing&&playing.classList.contains('vfull'))leaveFull(playing)});
   /* ролик, который прокрутили за пределы экрана, выключается (иначе звук идёт «за кадром») */
   if('IntersectionObserver' in window){
     var leave=new IntersectionObserver(function(es){
-      es.forEach(function(en){if(!en.isIntersecting&&en.target===playing){reset(playing);playing=null}});
+      es.forEach(function(en){if(!en.isIntersecting&&en.target===playing&&!isFull(playing)){reset(playing);playing=null}});
     },{threshold:.3});
     track.querySelectorAll('.vbox').forEach(function(b){leave.observe(b)});
   }
