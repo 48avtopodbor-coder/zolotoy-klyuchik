@@ -70,6 +70,11 @@ const ADMIN_CSS = `<style>
 .dayrow:first-child{border-top:0}
 .dayrow .chk{margin:0}
 @media (max-width:560px){.dayrow{grid-template-columns:1fr 1fr}.dayrow>b{grid-column:1/-1}}
+.vitem{grid-template-columns:72px minmax(0,1fr) auto}
+.vextra{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.vextra form{margin:0}
+.vcover{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.vcover input[type=file]{max-width:230px;font-size:.85rem}
 .lead-item{border-top:1px solid var(--line);padding:14px 0}.lead-item:first-child{border-top:0}
 .lead-item .meta{color:var(--muted);font-size:.85rem}
 .lead-item p{margin:6px 0 0;overflow-wrap:anywhere}
@@ -180,26 +185,35 @@ export function productFormPage(p?: AdminProduct): string {
 
 /* ---------- видео ---------- */
 
-export function videosPage(list: AdminVideo[], flash?: string): string {
-  const rows = list.length ? list.map((v, i) => `<div class="item">
+export function videosPage(list: AdminVideo[], flash?: string, error?: string): string {
+  const rows = list.length ? list.map((v, i) => `<div class="item vitem">
   ${v.cover_key ? `<img src="/img/${esc(v.cover_key)}" alt="" loading="lazy">` : '<div class="nophoto">без обложки</div>'}
   <div><b>Видео ${i + 1}</b><small><a href="${esc(v.url)}" target="_blank" rel="noopener" style="color:var(--gold)">${esc(v.url.replace(/^https?:\/\//, '').slice(0, 44))}</a></small></div>
   <div class="acts">
     <form method="post" action="/admin/videos/${v.id}/move"><input type="hidden" name="dir" value="up"><button class="abtn sm" type="submit"${i === 0 ? ' disabled' : ''} aria-label="Выше">↑</button></form>
     <form method="post" action="/admin/videos/${v.id}/move"><input type="hidden" name="dir" value="down"><button class="abtn sm" type="submit"${i === list.length - 1 ? ' disabled' : ''} aria-label="Ниже">↓</button></form>
     <form method="post" action="/admin/videos/${v.id}/delete" onsubmit="return confirm('Убрать это видео с сайта?')"><button class="abtn sm danger" type="submit">Убрать</button></form>
+  </div>
+  <div class="vextra">
+    <form method="post" action="/admin/videos/${v.id}/cover-auto"><button class="abtn sm" type="submit">Взять обложку из ВК</button></form>
+    <form class="f vcover" method="post" action="/admin/videos/${v.id}/cover" enctype="multipart/form-data" data-img data-next="/admin/videos?saved=1">
+      <span class="err" hidden></span>
+      <input name="cover" type="file" accept="image/*" required aria-label="Своя обложка для видео ${i + 1}">
+      <button class="abtn sm" type="submit">Загрузить свою</button>
+    </form>
   </div></div>`).join('') : '<p class="hint">Видео пока нет.</p>';
   return layout('videos', 'Видео', `
-<p class="sub">Ролики показываются на главной каруселью в том порядке, как здесь. Ссылку берите из ВКонтакте (клип или видео).</p>
+<p class="sub">Ролики показываются на главной каруселью в том порядке, как здесь. Ссылку берите из ВКонтакте (клип или видео). Обложку можно взять из ВК автоматически или загрузить свою (лучше вертикальную, как клип).</p>
+${error ? `<div class="err">${esc(error)}</div>` : ''}
 <div class="card">${rows}</div>
 <form class="card f" method="post" action="/admin/videos" enctype="multipart/form-data" data-img data-next="/admin/videos?added=1">
   <div class="err" hidden></div>
-  <label for="url">Ссылка на видео</label>
+  <label for="url">Новое видео: ссылка</label>
   <input id="url" name="url" type="url" required placeholder="https://vk.ru/clip-236241268_456239028">
   <label for="cover">Обложка (необязательно)</label>
   <input id="cover" name="cover" type="file" accept="image/*">
   <div data-prev="cover"></div>
-  <div class="hint">Если обложки нет, на сайте будет тёмная плашка с кнопкой «Смотреть».</div>
+  <div class="hint">Если свою обложку не выбрать, сайт попробует взять её из ВК сам.</div>
   <p><button class="abtn gold" type="submit" style="margin-top:14px">Добавить видео</button></p>
 </form>`, flash, IMG_JS);
 }

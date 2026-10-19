@@ -61,6 +61,31 @@ async function storeImage(db: D1Database, file: File): Promise<string | 'bad'> {
   return key;
 }
 
+
+/** Берёт кадр-обложку со страницы ролика ВКонтакте. Возвращает ключ сохранённой картинки или null. */
+async function fetchVkCover(db: D1Database, oid: string, vid: string): Promise<string | null> {
+  try {
+    const page = await fetch(`https://vk.com/video_ext.php?oid=${oid}&id=${vid}&hd=2`, { headers: { 'user-agent': 'Mozilla/5.0' } });
+    if (!page.ok) return null;
+    const text = new TextDecoder('windows-1251').decode(await page.arrayBuffer());
+    const urls = [...text.matchAll(/"(https:[^"]*?size=(\d+)x(\d+)[^"]*?type=video_thumb[^"]*?)"/g)]
+      .map((m) => ({ url: m[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&').replace(/&amp;/g, '&'), w: +m[2], h: +m[3] }))
+      .filter((u) => u.h > u.w)
+      .sort((a, b) => Math.abs(a.h - 640) - Math.abs(b.h - 640)); // нам подходит вертикальный кадр около 360x640
+    for (const u of urls) {
+      const img = await fetch(u.url, { headers: { 'user-agent': 'Mozilla/5.0', referer: 'https://vk.com/' } });
+      const type = img.headers.get('content-type') ?? '';
+      if (!img.ok || !IMAGE_TYPES[type]) continue;
+      const buf = await img.arrayBuffer();
+      if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGE) continue;
+      const key = `${crypto.randomUUID()}.${IMAGE_TYPES[type]}`;
+      await db.prepare('INSERT INTO images (key, content_type, data) VALUES (?,?,?)').bind(key, type, toBase64(buf)).run();
+      return key;
+    }
+  } catch { /* обложку можно загрузить вручную */ }
+  return null;
+}
+
 async function dropImages(c: C, keys: string[]) {
   for (const key of keys) {
     await c.env.DB.prepare('DELETE FROM images WHERE key=?').bind(key).run();
@@ -258,7 +283,7 @@ app.post('/admin/products/:id/delete', async (c) => {
 
 /* ---------- видео ---------- */
 
-app.get('/admin/videos', async (c) => c.html(A.videosPage(await loadVideos(c.env.DB), A.flashText(q(c)))));
+app.get('/admin/videos', async (c) => c.html(A.videosPage(await loadVideos(c.env.DB), A.flashText(q(c)), q(c).err ? 'Не удалось взять обложку из ВК. Загрузите свою картинку.' : undefined)));
 
 app.post('/admin/videos', async (c) => {
   const form = await c.req.formData();
@@ -268,6 +293,7 @@ app.post('/admin/videos', async (c) => {
   let cover: string | null = null;
   const cf = files(form, 'cover')[0];
   if (cf) { const k = await storeImage(c.env.DB, cf); if (k === 'bad') return c.text('Обложка должна быть JPG, PNG или WebP до 1 МБ', 400); cover = k; }
+  if (!cover) cover = await fetchVkCover(c.env.DB, m[1], m[2]);
   const pos = await c.env.DB.prepare('SELECT COALESCE(MAX(position),0)+1 AS p FROM videos').first<{ p: number }>();
   await c.env.DB.prepare('INSERT INTO videos (url,oid,vid,cover_key,position) VALUES (?,?,?,?,?)').bind(url, m[1], m[2], cover, pos?.p ?? 1).run();
   return c.redirect('/admin/videos?added=1');
@@ -283,6 +309,32 @@ app.post('/admin/videos/:id/move', async (c) => {
     [list[i], list[j]] = [list[j], list[i]];
     await c.env.DB.batch(list.map((v, n) => c.env.DB.prepare('UPDATE videos SET position=? WHERE id=?').bind(n + 1, v.id)));
   }
+  return c.redirect('/admin/videos?saved=1');
+});
+
+async function setCover(c: C, id: number, newKey: string) {
+  const v = await c.env.DB.prepare('SELECT cover_key FROM videos WHERE id=?').bind(id).first<{ cover_key: string | null }>();
+  await c.env.DB.prepare('UPDATE videos SET cover_key=? WHERE id=?').bind(newKey, id).run();
+  if (v?.cover_key) await dropImages(c, [v.cover_key]);
+}
+
+app.post('/admin/videos/:id/cover-auto', async (c) => {
+  const id = Number(c.req.param('id'));
+  const v = await c.env.DB.prepare('SELECT oid, vid FROM videos WHERE id=?').bind(id).first<{ oid: string; vid: string }>();
+  if (!v) return c.notFound();
+  const key = await fetchVkCover(c.env.DB, v.oid, v.vid);
+  if (!key) return c.redirect('/admin/videos?err=cover');
+  await setCover(c, id, key);
+  return c.redirect('/admin/videos?saved=1');
+});
+
+app.post('/admin/videos/:id/cover', async (c) => {
+  const id = Number(c.req.param('id'));
+  const f = files(await c.req.formData(), 'cover')[0];
+  if (!f) return c.text('Выберите картинку', 400);
+  const key = await storeImage(c.env.DB, f);
+  if (key === 'bad') return c.text('Обложка должна быть JPG, PNG или WebP до 1 МБ', 400);
+  await setCover(c, id, key);
   return c.redirect('/admin/videos?saved=1');
 });
 

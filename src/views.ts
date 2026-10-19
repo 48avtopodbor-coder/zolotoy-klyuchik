@@ -191,27 +191,37 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
     .then(function(){btn.disabled=false;btn.textContent='Отправить заявку'});
   });
 
-  /* видео: загрузка ролика только по нажатию */
-  document.querySelectorAll('.vplay').forEach(function(b){
-    b.addEventListener('click',function(){
-      var box=b.parentNode,f=document.createElement('iframe');
-      f.src='https://vk.com/video_ext.php?oid='+box.dataset.oid+'&id='+box.dataset.vid+'&hd=2&autoplay=1';
-      f.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title='Видео мастерской';
-      box.replaceChildren(f);stop();
-    });
-  });
-
-  /* карусель видео: медленная автопрокрутка, останавливается при любом действии посетителя */
+  /* видео: загрузка по нажатию, одновременно играет только один ролик */
   var vc=document.getElementById('vc');
   if(!vc)return;
-  var track=document.getElementById('vc-track'),timer=null,stopped=false;
+  var track=document.getElementById('vc-track'),timer=null,stopped=false,playing=null;
+  function stop(){stopped=true;clearInterval(timer)}
+  function reset(box){if(box&&box.querySelector('iframe'))box.innerHTML=box._orig}
+  track.querySelectorAll('.vbox').forEach(function(b){b._orig=b.innerHTML});
+  track.addEventListener('click',function(e){
+    var b=e.target.closest('.vplay');if(!b)return;
+    var box=b.parentNode;
+    if(playing&&playing!==box)reset(playing);
+    var f=document.createElement('iframe');
+    f.src='https://vk.com/video_ext.php?oid='+box.dataset.oid+'&id='+box.dataset.vid+'&hd=2&autoplay=1';
+    f.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';f.allowFullscreen=true;f.title='Видео мастерской';
+    box.replaceChildren(f);playing=box;stop();
+  });
+  /* ролик, который прокрутили за пределы экрана, выключается (иначе звук идёт «за кадром») */
+  if('IntersectionObserver' in window){
+    var leave=new IntersectionObserver(function(es){
+      es.forEach(function(en){if(!en.isIntersecting&&en.target===playing){reset(playing);playing=null}});
+    },{threshold:.3});
+    track.querySelectorAll('.vbox').forEach(function(b){leave.observe(b)});
+  }
+
+  /* карусель видео: медленная автопрокрутка, останавливается при любом действии посетителя */
   function step(dir){
     var card=track.firstElementChild;if(!card)return;
     var w=card.getBoundingClientRect().width+14,max=track.scrollWidth-track.clientWidth;
     if(dir>0&&track.scrollLeft>=max-4)track.scrollTo({left:0,behavior:'smooth'});
     else track.scrollBy({left:dir*w,behavior:'smooth'});
   }
-  function stop(){stopped=true;clearInterval(timer)}
   vc.querySelector('.prev').addEventListener('click',function(){stop();step(-1)});
   vc.querySelector('.next').addEventListener('click',function(){stop();step(1)});
   ['pointerdown','wheel','keydown','touchstart'].forEach(function(ev){track.addEventListener(ev,stop,{passive:true})});
