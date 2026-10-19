@@ -12,9 +12,9 @@ h1,h2,h3{margin:0;font-weight:600;line-height:1.2;text-wrap:balance}
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:#0a1824;border-bottom:1px solid var(--line)}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:#0a1824}
 .bar .wrap{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-block:11px}
-.logo{text-decoration:none;font-weight:600;letter-spacing:.02em}
+.logo{text-decoration:none;font-weight:700;letter-spacing:.01em;font-size:clamp(1.1rem,4.6vw,1.65rem);line-height:1.15}
 .logo b{color:var(--gold)}
-.tel{border:1px solid var(--gold);color:var(--gold);text-decoration:none;padding:8px 14px;border-radius:6px;font-family:var(--mono);font-size:.9rem;white-space:nowrap}
+.tel{border:1px solid var(--gold);color:var(--gold);text-decoration:none;padding:8px 14px;border-radius:6px;font-family:var(--mono);font-size:clamp(.9rem,3.4vw,1.05rem);white-space:nowrap}
 .hero{padding-block:48px 40px}
 .hero .wrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:30px;align-items:center}
 .hero h1{font-size:clamp(2rem,7vw,3.4rem);margin:12px 0 16px}
