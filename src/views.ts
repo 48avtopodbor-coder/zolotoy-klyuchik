@@ -60,6 +60,7 @@ export function homePage(products: Product[]): string {
       <div class="btns">
         <a class="btn gold" href="tel:${PHONE_TEL}">Позвонить</a>
         <a class="btn" href="https://wa.me/79005964577" target="_blank" rel="noopener">WhatsApp</a>
+        <a class="btn" href="https://t.me/Vitaliy48ru" target="_blank" rel="noopener">Telegram</a>
       </div>
       <div class="state" id="state">Пн–Пт 9:00–17:00</div>
     </div>
@@ -102,7 +103,7 @@ export function homePage(products: Product[]): string {
       <p><a href="${GIS_MAP}" target="_blank" rel="noopener">Открыть в 2ГИС</a></p></div>
     <div><div class="lbl">График</div>
       <table class="hrs"><tr><td>Пн–Пт</td><td>9:00–17:00</td></tr><tr><td>Сб, Вс</td><td>выходной</td></tr></table></div>
-    <div><div class="lbl">Связь</div><p><a href="tel:${PHONE_TEL}">${PHONE_TEXT}</a></p><p><a href="https://wa.me/79005964577" target="_blank" rel="noopener">WhatsApp</a></p></div>
+    <div><div class="lbl">Связь</div><p><a href="tel:${PHONE_TEL}">${PHONE_TEXT}</a></p><p><a href="https://wa.me/79005964577" target="_blank" rel="noopener">WhatsApp</a></p><p><a href="https://t.me/Vitaliy48ru" target="_blank" rel="noopener">Telegram: @Vitaliy48ru</a></p></div>
   </div>
   <div class="copy">© Мастерская «Золотой ключик», Липецк</div>
 </div></footer>
