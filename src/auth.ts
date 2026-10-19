@@ -33,3 +33,23 @@ export async function sessionOk(cookie: string | undefined, secret: string): Pro
 }
 
 export const SESSION_MAX_AGE = MAX_AGE;
+
+const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+
+async function derive(pw: string, salt: Uint8Array): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 }, key, 256));
+}
+
+/** Хранится как "соль:хэш"; сам пароль нигде не сохраняется. */
+export async function hashPassword(pw: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  return `${hex(salt)}:${await derive(pw, salt)}`;
+}
+
+export async function verifyPassword(pw: string, stored: string): Promise<boolean> {
+  const [saltHex, h] = stored.split(':');
+  if (!saltHex || !h) return false;
+  const salt = new Uint8Array(saltHex.match(/../g)!.map((x) => parseInt(x, 16)));
+  return safeEqual(await derive(pw, salt), h);
+}
