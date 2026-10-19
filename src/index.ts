@@ -37,7 +37,7 @@ async function loadProducts(db: D1Database): Promise<Product[]> {
 }
 
 const loadServices = async (db: D1Database) =>
-  (await db.prepare('SELECT id,label,title,short,price,mode,old_price,details FROM services ORDER BY position, id').all<Service>()).results;
+  (await db.prepare('SELECT id,label,title,short,price,mode,old_price,details,note,show_note FROM services ORDER BY position, id').all<Service>()).results;
 
 const loadVideos = async (db: D1Database) =>
   (await db.prepare('SELECT id,url,oid,vid,cover_key FROM videos ORDER BY position, id').all<Video>()).results;
@@ -441,6 +441,8 @@ function serviceFields(f: FormData) {
     mode: ['from', 'fixed', 'sale', 'none'].includes(mode) ? mode : 'from',
     old_price: toInt(f.get('old_price'), 10_000_000),
     details: String(f.get('details') ?? '').trim().slice(0, 6000),
+    note: String(f.get('note') ?? '').trim().slice(0, 60),
+    show_note: f.get('show_note') ? 1 : 0,
   };
 }
 
@@ -448,16 +450,16 @@ app.post('/admin/services', async (c) => {
   const v = serviceFields(await c.req.formData());
   if (!v.title) return c.redirect('/admin/services');
   const pos = await c.env.DB.prepare('SELECT COALESCE(MAX(position),0)+1 AS p FROM services').first<{ p: number }>();
-  await c.env.DB.prepare('INSERT INTO services (label,title,short,price,mode,old_price,details,position) VALUES (?,?,?,?,?,?,?,?)')
-    .bind(v.label, v.title, v.short, v.price, v.mode, v.old_price, v.details, pos?.p ?? 1).run();
+  await c.env.DB.prepare('INSERT INTO services (label,title,short,price,mode,old_price,details,note,show_note,position) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .bind(v.label, v.title, v.short, v.price, v.mode, v.old_price, v.details, v.note, v.show_note, pos?.p ?? 1).run();
   return c.redirect('/admin/services?added=1');
 });
 
 app.post('/admin/services/:id', async (c) => {
   const v = serviceFields(await c.req.formData());
   if (!v.title) return c.redirect('/admin/services');
-  await c.env.DB.prepare('UPDATE services SET label=?,title=?,short=?,price=?,mode=?,old_price=?,details=? WHERE id=?')
-    .bind(v.label, v.title, v.short, v.price, v.mode, v.old_price, v.details, Number(c.req.param('id'))).run();
+  await c.env.DB.prepare('UPDATE services SET label=?,title=?,short=?,price=?,mode=?,old_price=?,details=?,note=?,show_note=? WHERE id=?')
+    .bind(v.label, v.title, v.short, v.price, v.mode, v.old_price, v.details, v.note, v.show_note, Number(c.req.param('id'))).run();
   return c.redirect('/admin/services?saved=1');
 });
 

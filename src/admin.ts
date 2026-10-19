@@ -320,6 +320,10 @@ function serviceForm(s: Service | null, i: number, total: number): string {
   </div>
   <label for="${id}-old">Старая цена, ₽ (только для режима «Акция»)</label>
   <input id="${id}-old" name="old_price" type="number" min="0" max="10000000" inputmode="numeric" value="${s?.old_price ?? ''}">
+  <div class="row2">
+    <div class="chk" style="margin:0 0 6px"><input id="${id}-sn" name="show_note" type="checkbox" value="1"${s ? (s.show_note ? ' checked' : '') : ''}><label for="${id}-sn">Подпись под ценой</label></div>
+    <div><label for="${id}-note" style="margin-top:0">Текст подписи</label><input id="${id}-note" name="note" type="text" maxlength="60" placeholder="на все модели" value="${esc(s?.note ?? 'на все модели')}"></div>
+  </div>
   <label for="${id}-det">Подробный текст (раскрывается по кнопке «Подробнее», читается поисковиками)</label>
   <textarea id="${id}-det" name="details" maxlength="6000" style="min-height:220px">${esc(s?.details ?? '')}</textarea>
   <div class="hint">Абзацы разделяйте пустой строкой. Строки, которые начинаются с «- », станут маркированным списком.</div>

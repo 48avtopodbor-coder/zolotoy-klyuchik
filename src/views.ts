@@ -37,6 +37,7 @@ ${opts.head ?? ''}
 export interface Service {
   id: number; label: string; title: string; short: string;
   price: number | null; mode: 'from' | 'fixed' | 'sale' | 'none'; old_price: number | null; details: string;
+  note: string; show_note: number;
 }
 
 /** Текст услуги из админки: пустая строка разделяет абзацы, строки с «- » становятся списком. */
@@ -58,8 +59,9 @@ export function renderDetails(text: string): string {
 
 export function servicePrice(s: Service): string {
   if (s.price == null || s.mode === 'none') return '';
-  if (s.mode === 'sale') return `<div class="svc-price sale">${s.old_price != null && s.old_price > s.price ? `<s>${rub(s.old_price)}</s>` : ''}<span class="tag-sale">Акция</span>${rub(s.price)}</div>`;
-  return `<div class="svc-price">${s.mode === 'from' ? '<span>от</span> ' : ''}${rub(s.price)}</div>`;
+  const note = s.show_note && s.note.trim() ? `<span class="svc-note">${esc(s.note.trim())}</span>` : '';
+  if (s.mode === 'sale') return `<div class="svc-price sale">${s.old_price != null && s.old_price > s.price ? `<s>${rub(s.old_price)}</s>` : ''}<span class="tag-sale">Акция</span>${rub(s.price)}${note}</div>`;
+  return `<div class="svc-price">${s.mode === 'from' ? '<span>от</span> ' : ''}${rub(s.price)}${note}</div>`;
 }
 
 function serviceRow(s: Service): string {

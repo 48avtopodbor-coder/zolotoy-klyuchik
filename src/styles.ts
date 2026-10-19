@@ -169,4 +169,7 @@ html.vlock{overflow:hidden}
 .tag-sale.on-card::before{left:13px}
 .svc-price.sale,.good .pr.sale{color:var(--red-hi)}
 .svc-price.sale s,.good .pr.sale s{color:var(--muted)}
+
+.svc-price .svc-note{display:block;font:500 .78rem var(--body);color:var(--muted);margin-top:3px}
+@media (max-width:560px){.svc-price .svc-note{display:inline;margin-left:8px}}
 `;
