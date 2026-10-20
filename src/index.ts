@@ -3,7 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, makeSession, passwordOk, sessionOk, verifyPassword, SESSION_MAX_AGE } from './auth';
 import { DEFAULT_CONTACTS, DEFAULT_SITE, TIME_RE, loadSettings, loadSpecial, saveSetting, type Contacts, type Hours, type Settings, type Site } from './settings';
 import { HOLIDAYS_RF } from './holidays';
-import { homePage, SERVICE_ICONS, type Product, type Service, type Video } from './views';
+import { homePage, missingProductPage, productInner, productPage, productSlug, productUrl, SERVICE_ICONS, type Product, type Service, type Video } from './views';
 import * as A from './admin';
 
 type Env = {
@@ -18,7 +18,7 @@ const MAX_IMAGE = 1024 * 1024; // фото хранятся в D1 (лимит с
 const MAX_PHOTOS = 6;
 const IMAGE_TYPES: Record<string, string> = { 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
-const html = (body: string, status: 200 | 401 = 200, cache = 'no-store') =>
+const html = (body: string, status: 200 | 401 | 404 = 200, cache = 'no-store') =>
   new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': cache } });
 
 const sessionSecret = (env: Env['Bindings'], st: Settings) => `${env.ADMIN_PASSWORD}:${st.ver}`;
@@ -107,6 +107,29 @@ app.get('/', async (c) => {
   return html(homePage({ products, videos, hours: st.hours, contacts: st.contacts, site: st.site, chat: st.chat, services, special, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
 });
 
+/** Страница товара: у каждого свой адрес, чтобы его находил поиск. Название в адресе латиницей, при смене названия старый адрес перенаправляется. */
+app.get('/tovar/:slug', async (c) => {
+  const slug = c.req.param('slug');
+  const m = /^(\d+)(?:-.*)?$/.exec(slug);
+  const db = c.env.DB;
+  const [products, st, services, special] = await Promise.all([loadProducts(db), loadSettings(db), loadServices(db), loadSpecial(db)]);
+  const common = { hours: st.hours, contacts: st.contacts, services, special, chat: st.chat, site: st.site };
+  const p = m ? products.find((x) => x.id === Number(m[1])) : undefined;
+  if (!p) return html(missingProductPage(common), 404);
+  const want = productSlug(p);
+  if (slug !== want) return c.redirect(`/tovar/${want}`, 301);
+  const others = products.filter((x) => x.id !== p.id).slice(0, 4);
+  return html(productPage({ ...common, product: p, others, origin: new URL(c.req.url).origin }), 200, 'public, max-age=30');
+});
+
+/** Содержимое товара для окна на главной (то же, что на странице товара). */
+app.get('/api/product/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  const [products, st] = await Promise.all([loadProducts(c.env.DB), loadSettings(c.env.DB)]);
+  const p = products.find((x) => x.id === id);
+  return p ? html(productInner(p, st.contacts, 2), 200, 'public, max-age=30') : c.text('not found', 404);
+});
+
 app.get('/img/:key', async (c) => {
   const key = c.req.param('key');
   if (!/^[\w-]+\.(webp|jpg|png)$/.test(key)) return c.notFound();
@@ -131,9 +154,13 @@ const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><re
 const favicon = () => new Response(FAVICON, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
 app.get('/favicon.svg', favicon);
 app.get('/favicon.ico', favicon);
-app.get('/sitemap.xml', (c) => {
+app.get('/sitemap.xml', async (c) => {
+  const origin = new URL(c.req.url).origin;
   const today = new Date().toISOString().slice(0, 10);
-  return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${new URL(c.req.url).origin}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url></urlset>`,
+  const { results } = await c.env.DB.prepare('SELECT id, title FROM products ORDER BY id').all<{ id: number; title: string }>();
+  const urls = [`<url><loc>${origin}/</loc><lastmod>${today}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>`]
+    .concat(results.map((p) => `<url><loc>${origin}${productUrl(p)}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`));
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`,
     { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
 });
 
@@ -490,7 +517,7 @@ async function saveProduct(c: C, id: number | null) {
   const form = await c.req.formData();
   const title = String(form.get('title') ?? '').trim().slice(0, 120);
   if (!title) return c.text('Укажите название', 400);
-  const description = String(form.get('description') ?? '').trim().slice(0, 600);
+  const description = String(form.get('description') ?? '').trim().slice(0, 3000);
   const price = toInt(form.get('price'), 10_000_000);
   const oldPrice = toInt(form.get('old_price'), 10_000_000);
   const flags = [form.get('show_price') ? 1 : 0, form.get('is_sale') ? 1 : 0, form.get('in_stock') ? 1 : 0];

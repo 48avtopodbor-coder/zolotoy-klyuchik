@@ -1,4 +1,4 @@
-import { esc, rub, shell, SERVICE_ICONS, type Service } from './views';
+import { esc, productUrl, rub, shell, SERVICE_ICONS, type Service } from './views';
 import { DAY_LONG, mskToday, ruDate, type ChatCfg, type Contacts, type Hours, type Site, type SpecialDay } from './settings';
 import { SUN_LIB, type ThemeCfg } from './theme';
 
@@ -170,6 +170,7 @@ export function productsPage(list: AdminProduct[], flash?: string): string {
   <div><b>${esc(p.title)}${p.is_sale ? '<span class="tag">акция</span>' : ''}${p.in_stock ? '' : '<span class="tag grey">нет в наличии</span>'}</b>
   <small>${p.price != null ? rub(p.price) : 'без цены'}${p.price != null ? (p.show_price ? ' · цена показана' : ' · цена скрыта') : ''} · фото: ${p.images.length}</small></div>
   <div class="acts"><a class="abtn sm" href="/admin/products/${p.id}/edit">Изменить</a>
+  <a class="abtn sm" href="${productUrl(p)}" target="_blank" rel="noopener" title="Страница товара на сайте: её можно отправить клиенту">На сайте ↗</a>
   <form method="post" action="/admin/products/${p.id}/delete" onsubmit="return confirm('Удалить этот товар?')"><button class="abtn sm danger" type="submit">Удалить</button></form></div>
 </div>`).join('') : '<p class="hint">Товаров пока нет. Добавьте первый.</p>';
   return layout('products', 'Товары', `<p><a class="abtn gold" href="/admin/products/new">+ Добавить товар</a></p><div class="card">${rows}</div>`, flash);
@@ -188,7 +189,8 @@ export function productFormPage(p?: AdminProduct): string {
   <label for="title">Название</label>
   <input id="title" name="title" type="text" maxlength="120" required value="${esc(p?.title ?? '')}">
   <label for="description">Описание (необязательно)</label>
-  <textarea id="description" name="description" maxlength="600">${esc(p?.description ?? '')}</textarea>
+  <textarea id="description" name="description" maxlength="3000" style="min-height:9rem">${esc(p?.description ?? '')}</textarea>
+  <div class="hint">Показывается на странице товара. В карточке на сайте виден только короткий отрывок. Пустая строка делит текст на абзацы, строки с «- » в начале становятся списком.</div>
   <div class="row2">
     <div><label for="price">Цена, ₽</label><input id="price" name="price" type="number" min="0" max="10000000" step="1" inputmode="numeric" value="${p?.price ?? ''}"></div>
     <div><label for="old_price">Старая цена, ₽</label><input id="old_price" name="old_price" type="number" min="0" max="10000000" step="1" inputmode="numeric" value="${p?.old_price ?? ''}"></div>

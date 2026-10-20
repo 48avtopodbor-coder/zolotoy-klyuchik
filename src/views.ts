@@ -20,6 +20,39 @@ export const esc = (s: string): string =>
 
 export const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
 
+/* ---------- товары: адрес страницы, краткое описание, текст ---------- */
+
+const TRANSLIT: Record<string, string> = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' };
+export const slugify = (t: string): string =>
+  t.toLowerCase().replace(/[а-яё]/g, (c) => TRANSLIT[c] ?? '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '');
+/** Адрес страницы товара: номер и название латиницей. Если название поменяли, старый адрес перенаправляется на новый. */
+export const productSlug = (p: { id: number; title: string }): string => [p.id, slugify(p.title)].filter(Boolean).join('-');
+export const productUrl = (p: { id: number; title: string }): string => `/tovar/${productSlug(p)}`;
+
+/** Краткое описание для карточки: без переносов, обрезано по слову. */
+export function excerpt(text: string, max = 140): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return cut.slice(0, Math.max(cut.lastIndexOf(' '), Math.floor(max * 0.6))).replace(/[\s.,;:!—–-]+$/, '') + '…';
+}
+
+/** Описание товара: пустая строка делит абзацы, строки с «- » становятся списком, одиночные переносы сохраняются. */
+export function renderProductText(text: string): string {
+  const out: string[] = [];
+  let para: string[] = [], list: string[] = [];
+  const flushP = () => { if (para.length) out.push(`<p>${para.map(esc).join('<br>')}</p>`); para = []; };
+  const flushL = () => { if (list.length) out.push(`<ul>${list.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`); list = []; };
+  for (const raw of text.replace(/\r/g, '').split('\n')) {
+    const l = raw.trim();
+    if (!l) { flushP(); flushL(); continue; }
+    const m = /^[-•–]\s+(.*)$/.exec(l);
+    if (m) { flushP(); list.push(m[1]); } else { flushL(); para.push(l); }
+  }
+  flushP(); flushL();
+  return out.join('');
+}
+
 export function shell(title: string, body: string, opts: { noindex?: boolean; desc?: string; head?: string } = {}): string {
   return `<!doctype html>
 <html lang="ru"><head>
@@ -151,17 +184,40 @@ const KEY_DRAWING = (() => {
     + stamp + '<text class="note" x="20" y="292">размеры в мм</text></svg>';
 })();
 
-function productCard(p: Product): string {
+function priceBlock(p: Product, cls = 'pr'): string {
+  return p.show_price && p.price != null
+    ? `<div class="${cls}${p.is_sale ? ' sale' : ''}">${p.is_sale && p.old_price != null && p.old_price > p.price ? `<s>${rub(p.old_price)}</s> ` : ''}${rub(p.price)}</div>`
+    : `<div class="${cls} noprice">Цену уточняйте по телефону</div>`;
+}
+
+export function productCard(p: Product): string {
+  const url = productUrl(p);
   const photos = p.images.length
     ? `<div class="gal"><div class="gal-track">${p.images
         .map((k, i) => `<img src="/img/${esc(k)}" alt="${esc(p.title)}${p.images.length > 1 ? `, фото ${i + 1}` : ''}" width="800" height="600" loading="lazy" decoding="async">`)
         .join('')}</div>${p.images.length > 1 ? `<span class="gal-cnt">1/${p.images.length}</span>` : ''}</div>`
     : `<div class="ph">фото скоро</div>`;
   const badges = `${p.is_sale ? '<span class="tag-sale on-card">Акция</span>' : ''}${p.in_stock ? '' : '<span class="badge out">Нет в наличии</span>'}`;
-  const price = p.show_price && p.price != null
-    ? `<div class="pr${p.is_sale ? ' sale' : ''}">${p.is_sale && p.old_price != null && p.old_price > p.price ? `<s>${rub(p.old_price)}</s> ` : ''}${rub(p.price)}</div>`
-    : `<div class="pr ask">Цену уточняйте по телефону</div>`;
-  return `<article class="good${p.in_stock ? '' : ' is-out'}"><div class="gal-wrap">${photos}${badges}</div><div class="t"><h3>${esc(p.title)}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}${price}<button class="ask" type="button" data-ask="${esc(p.title)}" data-stock="${p.in_stock ? 1 : 0}" aria-label="Спросить про товар: ${esc(p.title)}"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Спросить<span class="ask-more"> про товар</span></span></button></div></article>`;
+  const text = excerpt(p.description);
+  return `<article class="good${p.in_stock ? '' : ' is-out'}" data-id="${p.id}" data-url="${url}"><div class="gal-wrap">${photos}${badges}</div><div class="t"><h3><a href="${url}">${esc(p.title)}</a></h3>${text ? `<p class="d">${esc(text)}</p>` : ''}${priceBlock(p)}<a class="more" href="${url}" aria-label="Подробнее о товаре: ${esc(p.title)}">Подробнее</a><button class="ask" type="button" data-ask="${esc(p.title)}" data-stock="${p.in_stock ? 1 : 0}" data-url="${url}" aria-label="Спросить про товар: ${esc(p.title)}"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg><span>Спросить<span class="ask-more"> про товар</span></span></button></div></article>`;
+}
+
+/** Содержимое товара: галерея, цена, описание, кнопки. Одно и то же на странице товара и в окне на главной. */
+export function productInner(p: Product, contacts: Contacts, level: 1 | 2): string {
+  const n = p.images.length;
+  const url = productUrl(p);
+  const main = contacts.phones[0] ?? '';
+  const badges = `${p.is_sale ? '<span class="tag-sale">Акция</span>' : ''}<span class="pi-stock ${p.in_stock ? 'in' : 'out'}">${p.in_stock ? 'В наличии' : 'Нет в наличии'}</span>`;
+  const slides = p.images.map((k, i) => `<img src="/img/${esc(k)}" alt="${esc(p.title)}${n > 1 ? `, фото ${i + 1}` : ''}" width="1000" height="750" decoding="async"${i === 0 ? ' fetchpriority="high"' : i > 1 ? ' loading="lazy"' : ''}>`).join('');
+  const gallery = n
+    ? `<div class="pg"><div class="pg-main"><div class="pg-track" tabindex="0" role="group" aria-roledescription="карусель" aria-label="Фото товара">${slides}</div>${n > 1 ? `<button class="pg-btn prev" type="button" aria-label="Предыдущее фото">‹</button><button class="pg-btn next" type="button" aria-label="Следующее фото">›</button><span class="pg-cnt">1 / ${n}</span>` : ''}</div>${n > 1 ? `<div class="pg-thumbs">${p.images.map((k, i) => `<button type="button" aria-label="Фото ${i + 1}"${i === 0 ? ' class="on"' : ''}><img src="/img/${esc(k)}" alt="" width="68" height="52" loading="lazy" decoding="async"></button>`).join('')}</div>` : ''}</div>`
+    : `<div class="pg"><div class="pg-main"><div class="ph">фото скоро</div></div></div>`;
+  return `<div class="pi">${gallery}<div class="pi-info"><div class="pi-badges">${badges}</div>
+<h${level} class="pi-title"${level === 2 ? ' id="pm-t"' : ''}>${esc(p.title)}</h${level}>
+${priceBlock(p)}
+${p.description.trim() ? `<div class="pi-text">${renderProductText(p.description)}</div>` : ''}
+<div class="pi-acts"><button class="btn gold ask" type="button" data-ask="${esc(p.title)}" data-stock="${p.in_stock ? 1 : 0}" data-url="${url}"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg>Спросить про товар</button>${main ? `<a class="btn" href="tel:${phoneTel(main)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>Позвонить</a>` : ''}</div>
+${level === 2 ? `<a class="pi-page" href="${url}">Открыть страницу товара</a>` : ''}</div></div>`;
 }
 
 function videoCard(v: Video, i: number): string {
@@ -169,8 +225,11 @@ function videoCard(v: Video, i: number): string {
   return `<div class="vcard"><div class="vbox" data-oid="${esc(v.oid)}" data-vid="${esc(v.vid)}"><button class="vplay" type="button" aria-label="Смотреть видео ${i + 1}">${cover}<i></i></button></div><a class="vlink" href="${esc(v.url)}" target="_blank" rel="noopener">Открыть во ВКонтакте</a></div>`;
 }
 
-export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours; contacts: Contacts; services: Service[]; origin: string; special: SpecialDay[]; site: Site; chat: ChatCfg }): string {
-  const { products, videos, hours, contacts, services, origin, site, chat } = d;
+interface Common { hours: Hours; contacts: Contacts; services: Service[]; special: SpecialDay[]; chat: ChatCfg }
+
+/** Общая рамка страниц: шапка, подвал, чат и скрипты. Содержимое страницы вставляется между top и bottom. */
+function chrome(d: Common, logoHref: string) {
+  const { hours, contacts, services, chat } = d;
   const today = mskToday();
   const upcoming = d.special.filter((x) => x.date >= today && x.date <= addDaysStr(today, 120));
   const soon = upcoming.filter((x) => x.date <= addDaysStr(today, 7)).map((x) => specialLine(x, hours)).filter((x): x is string => !!x);
@@ -180,43 +239,9 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   const wa = waNumber(contacts);
   const tg = contacts.telegram.replace(/^@/, '');
   const mapQ = encodeURIComponent(contacts.address);
-  const goods = products.length
-    ? `<div class="goods">${products.map(productCard).join('')}</div>`
-    : `<p class="empty">Скоро здесь появятся товары. Наличие подскажем по телефону.</p>`;
-
-  const heroPhoto = site.hero.key
-    ? `<figure class="hero-photo"><img src="/img/${esc(site.hero.key)}" alt="${esc(site.hero.caption || 'Мастерская')}" width="1400" height="788" decoding="async" fetchpriority="high">${site.hero.caption ? `<figcaption>${esc(site.hero.caption)}</figcaption>` : ''}</figure>`
-    : '';
-  const baAr = site.ba.ar && site.ba.ar >= 0.4 && site.ba.ar <= 2.5 ? Number(site.ba.ar.toFixed(3)) : 1.333;
-  const ba = site.ba.before && site.ba.after
-    ? `<figure class="ba-wrap"><div class="ba" style="--pos:50%">
-      <img class="ba-after" src="/img/${esc(site.ba.after)}" alt="Плёнка на телефоне: после" loading="lazy" decoding="async">
-      <img class="ba-before" src="/img/${esc(site.ba.before)}" alt="Телефон без плёнки: до" loading="lazy" decoding="async">
-      <span class="ba-tag l">До</span><span class="ba-tag r">После</span><i class="ba-line" aria-hidden="true"></i>
-      <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Сравнение: до и после">
-    </div>${site.ba.caption ? `<figcaption>${esc(site.ba.caption)}</figcaption>` : ''}</figure>`
-    : '';
-  const stepsHtml = `<section id="steps" class="reveal"><div class="wrap">
-    <div class="lbl">Порядок работы</div><h2>Как мы работаем</h2>
-    <div class="how${ba ? ' has-ba' : ''}" style="--ar:${baAr}">
-      <ol class="steps">${site.steps.map((st, i) => `<li><span class="n" aria-hidden="true">${i + 1}</span><div><h3>${esc(st.t)}</h3><p>${esc(st.d)}</p></div></li>`).join('')}</ol>
-      ${ba}
-    </div>
-  </div></section>`;
-  const vids = videos.length
-    ? `<section id="video" class="reveal" style="padding-top:0"><div class="wrap">
-    <div class="lbl">Видео</div><h2>Смотрите, как мы работаем</h2>
-    <div class="vc" id="vc">
-      <button class="vc-btn prev" type="button" aria-label="Назад">‹</button>
-      <div class="vc-track" id="vc-track">${videos.map(videoCard).join('')}</div>
-      <button class="vc-btn next" type="button" aria-label="Вперёд">›</button>
-    </div>
-  </div></section>`
-    : '';
   const hoursJson = JSON.stringify({ ...hours, special: upcoming.map((x) => ({ d: x.date, k: x.kind, o: x.open, c: x.close, n: x.note })) }).replace(/</g, '\\u003c');
   const phonesHtml = contacts.phones.map((p) => `<p><a class="mlink phone" href="tel:${phoneTel(p)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>${esc(p)}</a></p>`).join('');
-
-  const body = `
+  const top = `
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   ${ICON_SYMBOLS}
   <symbol id="i-wa" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/><path d="M8.9 8.6c0 3.3 2.7 6 6 6" stroke-width="2.6"/></symbol>
@@ -228,57 +253,15 @@ export function homePage(d: { products: Product[]; videos: Video[]; hours: Hours
   <symbol id="i-ph" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
 </svg>
 <div class="bar"><div class="wrap">
-  <a class="logo" href="#top">Мастерская <b>Золотой ключик</b></a>
+  <a class="logo" href="${logoHref}">Мастерская <b>Золотой ключик</b></a>
   <div class="bar-actions">
     <button class="theme-btn" id="theme-btn" type="button" aria-label="Включить светлую тему"><svg class="ico i-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ico i-moon" aria-hidden="true"><use href="#i-moon"/></svg></button>
     ${main ? `<a class="tel" href="tel:${phoneTel(main)}" aria-label="Позвонить ${esc(main)}"><svg class="ico tel-ico" aria-hidden="true"><use href="#i-ph"/></svg><span class="tel-num">${esc(main)}</span></a>` : ''}
   </div>
 </div></div>
 ${notice}
-<main id="top">
-  <div class="hero"><div class="wrap">
-    <div>
-      <div class="lbl">Липецк · ${esc(contacts.address.replace(/^\d{6},?\s*/, '').replace(/^г\.\s*Липецк,?\s*/, ''))}</div>
-      <h1>Точная копия вашего ключа</h1>
-      <p>Дубликаты обычных и домофонных ключей, защитная плёнка для телефона, зарядки и шнуры.</p>
-      <div class="btns">
-        ${main ? `<a class="btn gold" href="tel:${phoneTel(main)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>Позвонить</a>` : ''}
-        ${wa ? `<a class="split wa" href="https://wa.me/${wa}" target="_blank" rel="noopener"><span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg></span><span class="label">WhatsApp</span></a>` : ''}
-        ${tg ? `<a class="split tg" href="https://t.me/${esc(tg)}" target="_blank" rel="noopener"><span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg></span><span class="label">Telegram</span></a>` : ''}
-      </div>
-      <div class="state" id="state">${hoursRows(hours).map((r) => `${r.label} ${r.value}`).join(', ')}</div>
-    </div>
-    <div class="hero-art">${heroPhoto}${KEY_DRAWING}</div>
-  </div></div>
-
-  <section class="reveal"><div class="wrap">
-    <div class="lbl">Услуги</div><h2>Что мы делаем</h2>
-    <div class="rows">${services.map(serviceRow).join('')}</div>
-  </div></section>
-
-  ${stepsHtml}
-  <section id="goods" class="reveal" style="padding-top:0"><div class="wrap">
-    <div class="lbl">Товары</div><h2>В наличии</h2>
-    ${goods}
-  </div></section>
-
-  ${vids}
-
-  <section id="lead" class="reveal" style="padding-top:0"><div class="wrap">
-    <div class="lbl">Заявка</div><h2>Оставьте номер, мы перезвоним</h2>
-    <form id="lead-form" class="lead" novalidate>
-      <label for="lf-name">Ваше имя</label>
-      <input id="lf-name" name="name" type="text" autocomplete="name" maxlength="80" required>
-      <label for="lf-phone">Телефон</label>
-      <input id="lf-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="8 900 000-00-00" maxlength="30" required>
-      <label for="lf-msg">Что нужно сделать (необязательно)</label>
-      <textarea id="lf-msg" name="message" maxlength="500" placeholder="Например: сделать два дубликата ключа от квартиры"></textarea>
-      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <button class="btn gold" type="submit" id="lf-btn">Отправить заявку</button>
-      <p class="lf-status" id="lf-status" role="status" hidden></p>
-    </form>
-  </div></section>
-</main>
+`;
+  const bottom = `
 
 <footer id="contacts"><div class="wrap">
   <div class="info">
@@ -477,8 +460,9 @@ ${notice}
   btn.addEventListener('click',open);
   /* «Спросить про товар»: открываем чат и подставляем вопрос, отправляет сам посетитель */
   document.addEventListener('click',function(e){
-    var a=e.target.closest('.ask');if(!a)return;
+    var a=e.target.closest('[data-ask]');if(!a)return;
     var t=a.dataset.ask,q=a.dataset.stock==='1'?'Здравствуйте! Интересует товар «'+t+'». Есть в наличии?':'Здравствуйте! Когда будет в наличии «'+t+'»?';
+    if(a.dataset.url)q+='\\n'+location.origin+a.dataset.url;
     open();removeChips();
     text.value=text.value.trim()?text.value.trim()+'\\n'+q:q;
     text.style.height='auto';text.style.height=Math.min(text.scrollHeight,110)+'px';
@@ -610,7 +594,7 @@ ${notice}
     }
     if(!text)text='Сейчас закрыто';
   }
-  var st=document.getElementById('state');st.textContent=(open?'● ':'○ ')+text;window.__open=open;window.__status=text;
+  var st=document.getElementById('state');if(st)st.textContent=(open?'● ':'○ ')+text;window.__open=open;window.__status=text;
 
   /* слайдер «до и после» */
   document.querySelectorAll('.ba').forEach(function(b){
@@ -634,9 +618,98 @@ ${notice}
     t.addEventListener('scroll',function(){c.textContent=(Math.round(t.scrollLeft/t.clientWidth)+1)+'/'+t.children.length},{passive:true});
   });
 
+  /* галерея товара: стрелки, миниатюры, счётчик (на странице товара и в окне) */
+  var calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function initGal(root){
+    root.querySelectorAll('.pg').forEach(function(g){
+      if(g._on)return;g._on=1;
+      var tr=g.querySelector('.pg-track');if(!tr)return;
+      var n=tr.children.length,cnt=g.querySelector('.pg-cnt'),th=g.querySelectorAll('.pg-thumbs button'),pv=g.querySelector('.prev'),nx=g.querySelector('.next');
+      function idx(){return tr.clientWidth?Math.round(tr.scrollLeft/tr.clientWidth):0}
+      function go(i){i=Math.max(0,Math.min(n-1,i));tr.scrollTo({left:i*tr.clientWidth,behavior:calm?'auto':'smooth'})}
+      function sync(){
+        var i=idx();
+        if(cnt)cnt.textContent=(i+1)+' / '+n;
+        th.forEach(function(b,j){b.classList.toggle('on',j===i);if(j===i)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current')});
+        if(pv)pv.disabled=i<=0;
+        if(nx)nx.disabled=i>=n-1;
+      }
+      tr.addEventListener('scroll',function(){requestAnimationFrame(sync)},{passive:true});
+      if(pv)pv.addEventListener('click',function(){go(idx()-1)});
+      if(nx)nx.addEventListener('click',function(){go(idx()+1)});
+      th.forEach(function(b,j){b.addEventListener('click',function(){go(j)})});
+      tr.addEventListener('keydown',function(e){
+        if(e.key==='ArrowLeft'){e.preventDefault();go(idx()-1)}
+        else if(e.key==='ArrowRight'){e.preventDefault();go(idx()+1)}
+      });
+      g._go=function(i){tr.scrollTo({left:i*tr.clientWidth,behavior:'auto'});sync()};
+      sync();
+    });
+  }
+  initGal(document);
+
+  /* окно товара на главной: по нажатию на фото, название или «Подробнее». У каждого товара есть и своя страница с тем же содержимым */
+  var pm=document.getElementById('pm');
+  if(pm&&pm.showModal){
+    var pbody=pm.querySelector('.pm-body'),pbox=pm.querySelector('.pm-box'),loads={},pushed=false,baseTitle=document.title,curCard=null;
+    document.documentElement.classList.add('pm-on');
+    function fetchP(id){
+      if(!loads[id])loads[id]=fetch('/api/product/'+id).then(function(r){if(!r.ok)throw new Error('нет товара');return r.text()}).catch(function(e){delete loads[id];throw e});
+      return loads[id];
+    }
+    function openP(card,idx){
+      var id=card.dataset.id,url=card.dataset.url;
+      curCard=card;card.classList.add('is-loading');
+      var slow=setTimeout(function(){if(curCard===card)location.href=url},6000);
+      fetchP(id).then(function(html){
+        clearTimeout(slow);card.classList.remove('is-loading');
+        if(curCard!==card)return;
+        pbody.innerHTML=html;initGal(pbody);
+        var h=pbody.querySelector('.pi-title');
+        if(h)pm.setAttribute('aria-label',h.textContent);
+        if(!pm.open){
+          pm.showModal();document.documentElement.classList.add('pm-open');
+          history.pushState({pm:1},'',url);pushed=true;
+          document.title=(h?h.textContent+' | ':'')+'Золотой ключик';
+        }
+        pbox.scrollTop=0;
+        var g=pbody.querySelector('.pg');if(g&&g._go&&idx)g._go(idx);
+      }).catch(function(){clearTimeout(slow);card.classList.remove('is-loading');location.href=url});
+    }
+    pm.addEventListener('close',function(){
+      document.documentElement.classList.remove('pm-open');
+      document.title=baseTitle;pbody.innerHTML='';curCard=null;
+      if(pushed){pushed=false;history.back()}
+    });
+    pm.addEventListener('click',function(e){
+      if(e.target===pm||e.target.closest('.pm-x')||e.target.closest('[data-ask]'))pm.close();
+    });
+    window.addEventListener('popstate',function(){
+      if(pm.open){pushed=false;pm.close()}
+      else if(location.pathname.indexOf('/tovar/')===0)location.reload();
+    });
+    var goods=document.getElementById('goods');
+    if(goods){
+      goods.addEventListener('click',function(e){
+        if(e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+        var card=e.target.closest('.good');
+        if(!card||e.target.closest('[data-ask]'))return;
+        if(e.target.closest('a')||e.target.closest('.gal-wrap')){
+          e.preventDefault();
+          var tr=card.querySelector('.gal-track');
+          openP(card,tr&&tr.clientWidth?Math.round(tr.scrollLeft/tr.clientWidth):0);
+        }
+      });
+      /* окно открывается мгновенно: содержимое подгружаем, как только палец или мышь коснулись карточки */
+      ['pointerover','touchstart','focusin'].forEach(function(ev){
+        goods.addEventListener(ev,function(e){var c=e.target.closest&&e.target.closest('.good');if(c)fetchP(c.dataset.id).catch(function(){})},{passive:true});
+      });
+    }
+  }
+
   /* форма заявки */
   var lf=document.getElementById('lead-form');
-  lf.addEventListener('submit',function(e){
+  if(lf)lf.addEventListener('submit',function(e){
     e.preventDefault();
     var s=document.getElementById('lf-status'),btn=document.getElementById('lf-btn');
     function say(title,text,ok){
@@ -717,6 +790,92 @@ ${notice}
   }
 })();
 </script>`;
+  return { top, bottom, upcoming, main, wa, tg };
+}
+
+export function homePage(d: Common & { products: Product[]; videos: Video[]; origin: string; site: Site }): string {
+  const { products, videos, hours, contacts, services, origin, site } = d;
+  const c = chrome(d, '#top');
+  const { main, wa, tg, upcoming } = c;
+  const goods = products.length
+    ? `<div class="goods">${products.map(productCard).join('')}</div>`
+    : `<p class="empty">Скоро здесь появятся товары. Наличие подскажем по телефону.</p>`;
+
+  const heroPhoto = site.hero.key
+    ? `<figure class="hero-photo"><img src="/img/${esc(site.hero.key)}" alt="${esc(site.hero.caption || 'Мастерская')}" width="1400" height="788" decoding="async" fetchpriority="high">${site.hero.caption ? `<figcaption>${esc(site.hero.caption)}</figcaption>` : ''}</figure>`
+    : '';
+  const baAr = site.ba.ar && site.ba.ar >= 0.4 && site.ba.ar <= 2.5 ? Number(site.ba.ar.toFixed(3)) : 1.333;
+  const ba = site.ba.before && site.ba.after
+    ? `<figure class="ba-wrap"><div class="ba" style="--pos:50%">
+      <img class="ba-after" src="/img/${esc(site.ba.after)}" alt="Плёнка на телефоне: после" loading="lazy" decoding="async">
+      <img class="ba-before" src="/img/${esc(site.ba.before)}" alt="Телефон без плёнки: до" loading="lazy" decoding="async">
+      <span class="ba-tag l">До</span><span class="ba-tag r">После</span><i class="ba-line" aria-hidden="true"></i>
+      <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Сравнение: до и после">
+    </div>${site.ba.caption ? `<figcaption>${esc(site.ba.caption)}</figcaption>` : ''}</figure>`
+    : '';
+  const stepsHtml = `<section id="steps" class="reveal"><div class="wrap">
+    <div class="lbl">Порядок работы</div><h2>Как мы работаем</h2>
+    <div class="how${ba ? ' has-ba' : ''}" style="--ar:${baAr}">
+      <ol class="steps">${site.steps.map((st, i) => `<li><span class="n" aria-hidden="true">${i + 1}</span><div><h3>${esc(st.t)}</h3><p>${esc(st.d)}</p></div></li>`).join('')}</ol>
+      ${ba}
+    </div>
+  </div></section>`;
+  const vids = videos.length
+    ? `<section id="video" class="reveal" style="padding-top:0"><div class="wrap">
+    <div class="lbl">Видео</div><h2>Смотрите, как мы работаем</h2>
+    <div class="vc" id="vc">
+      <button class="vc-btn prev" type="button" aria-label="Назад">‹</button>
+      <div class="vc-track" id="vc-track">${videos.map(videoCard).join('')}</div>
+      <button class="vc-btn next" type="button" aria-label="Вперёд">›</button>
+    </div>
+  </div></section>`
+    : '';
+  const modal = `
+<dialog class="pm" id="pm" aria-label="Товар"><button class="pm-x" type="button" aria-label="Закрыть">×</button><div class="pm-box"><div class="pm-body"></div></div></dialog>`;
+  const body = c.top + `<main id="top">
+  <div class="hero"><div class="wrap">
+    <div>
+      <div class="lbl">Липецк · ${esc(contacts.address.replace(/^\d{6},?\s*/, '').replace(/^г\.\s*Липецк,?\s*/, ''))}</div>
+      <h1>Точная копия вашего ключа</h1>
+      <p>Дубликаты обычных и домофонных ключей, защитная плёнка для телефона, зарядки и шнуры.</p>
+      <div class="btns">
+        ${main ? `<a class="btn gold" href="tel:${phoneTel(main)}"><svg class="ico" aria-hidden="true"><use href="#i-ph"/></svg>Позвонить</a>` : ''}
+        ${wa ? `<a class="split wa" href="https://wa.me/${wa}" target="_blank" rel="noopener"><span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-wa"/></svg></span><span class="label">WhatsApp</span></a>` : ''}
+        ${tg ? `<a class="split tg" href="https://t.me/${esc(tg)}" target="_blank" rel="noopener"><span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-tg"/></svg></span><span class="label">Telegram</span></a>` : ''}
+      </div>
+      <div class="state" id="state">${hoursRows(hours).map((r) => `${r.label} ${r.value}`).join(', ')}</div>
+    </div>
+    <div class="hero-art">${heroPhoto}${KEY_DRAWING}</div>
+  </div></div>
+
+  <section class="reveal"><div class="wrap">
+    <div class="lbl">Услуги</div><h2>Что мы делаем</h2>
+    <div class="rows">${services.map(serviceRow).join('')}</div>
+  </div></section>
+
+  ${stepsHtml}
+  <section id="goods" class="reveal" style="padding-top:0"><div class="wrap">
+    <div class="lbl">Товары</div><h2>В наличии</h2>
+    ${goods}
+  </div></section>
+
+  ${vids}
+
+  <section id="lead" class="reveal" style="padding-top:0"><div class="wrap">
+    <div class="lbl">Заявка</div><h2>Оставьте номер, мы перезвоним</h2>
+    <form id="lead-form" class="lead" novalidate>
+      <label for="lf-name">Ваше имя</label>
+      <input id="lf-name" name="name" type="text" autocomplete="name" maxlength="80" required>
+      <label for="lf-phone">Телефон</label>
+      <input id="lf-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="8 900 000-00-00" maxlength="30" required>
+      <label for="lf-msg">Что нужно сделать (необязательно)</label>
+      <textarea id="lf-msg" name="message" maxlength="500" placeholder="Например: сделать два дубликата ключа от квартиры"></textarea>
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button class="btn gold" type="submit" id="lf-btn">Отправить заявку</button>
+      <p class="lf-status" id="lf-status" role="status" hidden></p>
+    </form>
+  </div></section>
+</main>` + modal + c.bottom;
   const from = services.filter((x) => x.price != null && x.mode !== 'none').map((x) => `${x.title.toLowerCase()} ${x.mode === 'from' ? 'от ' : ''}${x.price} ₽`).join(', ');
   const desc = `Дубликаты ключей и домофонных ключей, наклейка защитной плёнки на телефон, зарядки и USB-шнуры в Липецке. ${from ? `Цены: ${from}. ` : ''}${contacts.address}.`;
   const title = 'Дубликаты ключей, домофонные ключи, плёнка на телефон в Липецке | Золотой ключик';
@@ -727,4 +886,63 @@ ${notice}
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(origin)}/">
 ${jsonLd(origin, contacts, hours, services, upcoming)}`;
   return shell(title, body, { desc, head });
+}
+
+/* ---------- страница товара ---------- */
+
+function productLd(origin: string, p: Product): string {
+  const url = origin + productUrl(p);
+  const images = p.images.map((k) => `${origin}/img/${k}`);
+  const data = {
+    '@context': 'https://schema.org', '@type': 'Product', name: p.title, url, sku: String(p.id),
+    ...(images.length ? { image: images } : {}),
+    ...(p.description.trim() ? { description: p.description.replace(/\s+/g, ' ').trim().slice(0, 1000) } : {}),
+    ...(p.show_price && p.price != null ? {
+      offers: {
+        '@type': 'Offer', url, priceCurrency: 'RUB', price: p.price, itemCondition: 'https://schema.org/NewCondition',
+        availability: p.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        seller: { '@type': 'Organization', name: 'Мастерская «Золотой ключик»' },
+      },
+    } : {}),
+  };
+  const crumbs = {
+    '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Главная', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: 'Товары', item: `${origin}/#goods` },
+      { '@type': 'ListItem', position: 3, name: p.title, item: url },
+    ],
+  };
+  return [data, crumbs].map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`).join('\n');
+}
+
+export function productPage(d: Common & { product: Product; others: Product[]; origin: string; site: Site }): string {
+  const { product: p, others, contacts, origin, site } = d;
+  const c = chrome(d, '/');
+  const abs = origin + productUrl(p);
+  const crumbs = `<nav class="crumbs" aria-label="Путь по сайту"><a href="/">Главная</a><span aria-hidden="true">›</span><a href="/#goods">Товары</a><span aria-hidden="true">›</span><span aria-current="page">${esc(p.title)}</span></nav>`;
+  const more = others.length
+    ? `<section class="pp-more"><h2>Другие товары</h2><div class="goods">${others.map(productCard).join('')}</div></section>`
+    : '';
+  const body = c.top + `<main id="top" class="pp"><div class="wrap">${crumbs}${productInner(p, contacts, 1)}${more}</div></main>` + c.bottom;
+  const title = `${p.title.length > 70 ? p.title.slice(0, 67) + '…' : p.title} в Липецке | Золотой ключик`;
+  const price = p.show_price && p.price != null ? `Цена ${rub(p.price)}. ` : '';
+  const desc = p.description.trim()
+    ? excerpt(p.description, 155)
+    : `${p.title}. ${price}${p.in_stock ? 'В наличии' : 'Под заказ'} в мастерской «Золотой ключик», ${contacts.address}.`;
+  const img = p.images[0] ? `${origin}/img/${p.images[0]}` : '';
+  const head = `${themeHead(site.theme)}
+<meta name="color-scheme" content="dark light">
+<link rel="canonical" href="${esc(abs)}">
+<meta property="og:type" content="product"><meta property="og:locale" content="ru_RU">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(abs)}">${img ? `<meta property="og:image" content="${esc(img)}">` : ''}
+${productLd(origin, p)}`;
+  return shell(title, body, { desc, head });
+}
+
+/** Страница на месте убранного товара: человек видит ссылку на каталог, поисковик получает 404. */
+export function missingProductPage(d: Common & { site: Site }): string {
+  const c = chrome(d, '/');
+  const body = c.top + `<main id="top" class="pp"><div class="wrap"><h1 class="pi-title">Такого товара нет</h1><p class="empty">Возможно, его уже убрали или ссылка устарела. Посмотрите, что есть сейчас.</p><p><a class="btn gold" href="/#goods">Все товары</a></p></div></main>` + c.bottom;
+  return shell('Товар не найден | Золотой ключик', body, { noindex: true, head: `${themeHead(d.site.theme)}\n<meta name="color-scheme" content="dark light">` });
 }
