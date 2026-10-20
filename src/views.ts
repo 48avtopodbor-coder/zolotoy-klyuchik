@@ -649,9 +649,9 @@ ${notice}
   initGal(document);
 
   /* окно товара на главной: по нажатию на фото, название или «Подробнее». У каждого товара есть и своя страница с тем же содержимым */
-  var pm=document.getElementById('pm');
+  var pm=document.getElementById('pm'),here=location.pathname,pushed=false,leaving=false;
   if(pm&&pm.showModal){
-    var pbody=pm.querySelector('.pm-body'),pbox=pm.querySelector('.pm-box'),loads={},pushed=false,baseTitle=document.title,curCard=null;
+    var pbody=pm.querySelector('.pm-body'),pbox=pm.querySelector('.pm-box'),loads={},baseTitle=document.title,curCard=null;
     document.documentElement.classList.add('pm-on');
     function fetchP(id){
       if(!loads[id])loads[id]=fetch('/api/product/'+id).then(function(r){if(!r.ok)throw new Error('нет товара');return r.text()}).catch(function(e){delete loads[id];throw e});
@@ -681,13 +681,23 @@ ${notice}
       document.title=baseTitle;pbody.innerHTML='';curCard=null;
       if(pushed){pushed=false;history.back()}
     });
+    /* «Открыть страницу товара»: адрес окна совпадает с адресом страницы, поэтому Chrome не добавляет запись в историю, а подменяет её,
+       и после «назад» меняется только адрес. Сначала снимаем запись окна кнопкой «назад», потом открываем страницу как обычный новый переход */
+    function toPage(url){
+      if(leaving)return;
+      leaving=true;pushed=false;
+      var done=false;
+      function go(){if(done)return;done=true;removeEventListener('popstate',go);location.href=url}
+      addEventListener('popstate',go);setTimeout(go,1500);
+      setTimeout(function(){leaving=false;if(pm.open)pm.close()},5000);
+      history.back();
+    }
     pm.addEventListener('click',function(e){
+      var pg=e.target.closest('.pi-page');
+      if(pg&&pushed&&!e.button&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey){e.preventDefault();toPage(pg.href);return}
       if(e.target===pm||e.target.closest('.pm-x')||e.target.closest('[data-ask]'))pm.close();
     });
-    window.addEventListener('popstate',function(){
-      if(pm.open){pushed=false;pm.close()}
-      else if(location.pathname.indexOf('/tovar/')===0)location.reload();
-    });
+    addEventListener('pagehide',function(){if(leaving&&pm.open)pm.close()});
     var goods=document.getElementById('goods');
     if(goods){
       goods.addEventListener('click',function(e){
@@ -706,6 +716,18 @@ ${notice}
       });
     }
   }
+
+  /* адрес и страница должны совпадать. Chrome после «назад» иногда меняет только адрес, а страница остаётся прежней: тогда загружаем ту, что соответствует адресу */
+  function sync(pop){
+    if(leaving)return;
+    if(pm&&pm.open){
+      if(!pop&&location.pathname!==here)return;
+      pushed=false;pm.close();
+    }
+    if(location.pathname!==here)location.reload();
+  }
+  addEventListener('popstate',function(){sync(true)});
+  addEventListener('pageshow',function(e){if(e.persisted){leaving=false;sync(false)}});
 
   /* форма заявки */
   var lf=document.getElementById('lead-form');
