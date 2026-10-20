@@ -7,3 +7,7 @@ binding = "DB"
 database_name = "zolotoy-klyuchik"
 database_id = "afa84b96-287d-450a-ab73-b505067e716b"
 migrations_dir = "migrations"
+
+# раз в минуту: SMS мастеру о заявках и о сообщениях в чате без ответа (src/sms.ts)
+[triggers]
+crons = ["* * * * *"]

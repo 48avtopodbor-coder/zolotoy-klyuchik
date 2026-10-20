@@ -1,13 +1,14 @@
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { hashPassword, makeSession, passwordOk, sessionOk, verifyPassword, SESSION_MAX_AGE } from './auth';
-import { DEFAULT_CONTACTS, DEFAULT_SITE, TIME_RE, loadSettings, loadSpecial, saveSetting, type Contacts, type Hours, type Settings, type Site } from './settings';
+import { DEFAULT_CONTACTS, DEFAULT_SITE, TIME_RE, loadSettings, loadSpecial, saveSetting, type Contacts, type Hours, type Settings, type Site, type SmsCfg } from './settings';
+import { normPhone, sendTest, sentToday, smsKeysReady, smsRecent, smsWatch } from './sms';
 import { HOLIDAYS_RF } from './holidays';
 import { homePage, missingProductPage, productInner, productPage, productSlug, productUrl, SERVICE_ICONS, type Product, type Service, type Video } from './views';
 import * as A from './admin';
 
 type Env = {
-  Bindings: { DB: D1Database; ADMIN_PASSWORD: string; TELEGRAM_BOT_TOKEN?: string; TELEGRAM_CHAT_ID?: string; TELEGRAM_WEBHOOK_SECRET?: string; TELEGRAM_API?: string };
+  Bindings: { DB: D1Database; ADMIN_PASSWORD: string; TELEGRAM_BOT_TOKEN?: string; TELEGRAM_CHAT_ID?: string; TELEGRAM_WEBHOOK_SECRET?: string; TELEGRAM_API?: string; SMSRU_API_ID?: string; SMSRU_API?: string; SMSGATE_USER?: string; SMSGATE_PASSWORD?: string; SMSGATE_API?: string };
   Variables: { st: Settings };
 };
 type C = Context<Env>;
@@ -348,14 +349,14 @@ app.post('/api/chat/send', async (c) => {
       db.prepare('DELETE FROM chat_photos WHERE key IN (SELECT key FROM chat_photos ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET 300)'), // и не больше 300 штук
     ]);
   }
-  const ins = await db.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text, photo) VALUES (?,1,?,?)').bind(cid, text, photoKey).run();
+  const autos = [...new Set(String(b.auto ?? '').split(',').map((x) => x.trim()).filter((x) => x in AUTO_LABELS))].slice(0, 4);
+  const ins = await db.prepare('INSERT INTO chat_messages (chat_id, from_visitor, text, photo, auto) VALUES (?,1,?,?,?)').bind(cid, text, photoKey, autos.join(',')).run();
   const id = ins.meta.last_row_id as number;
 
   const who = [chat.name, chat.phone].filter(Boolean).map(escHtml).join(' · ');
   const icon = pic ? '📷' : '💬';
   const head = first || who ? `${icon} <b>Чат с сайта</b> #${cid.slice(0, 4)}${who ? `\n${who}` : ''}\n\n` : `${icon} #${cid.slice(0, 4)}\n`;
   const tail = first ? '\n\n<i>Чтобы ответить, нажмите «Ответить» на это сообщение.</i>' : '';
-  const autos = [...new Set(String(b.auto ?? '').split(',').map((x) => x.trim()).filter((x) => x in AUTO_LABELS))].slice(0, 4);
   const autoLine = autos.length ? `\n\n<i>🤖 Посетитель уже получил автоответ: ${autos.map((x) => AUTO_LABELS[x]).join(', ')}.</i>` : '';
   const msg = `${head}${escHtml(text)}${autoLine}${tail}`;
   let delivered = false;
@@ -906,4 +907,41 @@ app.post('/admin/leads/:id/delete', async (c) => {
   return c.redirect('/admin/leads?deleted=1');
 });
 
-export default app;
+/* ---------- SMS ---------- */
+
+const smsInfo = async (c: C): Promise<A.SmsInfo> => ({ keys: smsKeysReady(c.env, c.get('st').sms), today: await sentToday(c.env.DB), log: await smsRecent(c.env.DB) });
+
+app.get('/admin/sms', async (c) => {
+  const qq = q(c), info = await smsInfo(c);
+  const err = qq.t === '0' ? `Пробное SMS не отправилось: ${info.log.find((r) => r.kind === 'test')?.info ?? 'причина неизвестна'}` : undefined;
+  return c.html(A.smsPage(c.get('st').sms, info, qq.t === '1' ? 'Пробное SMS отправлено. Проверьте телефон.' : A.flashText(qq), err));
+});
+
+app.post('/admin/sms', async (c) => {
+  const f = await c.req.formData();
+  const raw = String(f.get('phone') ?? '').trim(), phone = raw ? normPhone(raw) : '';
+  const num = (k: string, d: number, lo: number, hi: number) => { const n = Math.round(Number(f.get(k))); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
+  const tm = (k: string, d: string) => { const v = String(f.get(k) ?? ''); return TIME_RE.test(v) ? v : d; };
+  const next: SmsCfg = {
+    on: !!f.get('on'), provider: f.get('provider') === 'gate' ? 'gate' : 'smsru', phone: phone ?? raw,
+    leads: !!f.get('leads'), chats: !!f.get('chats'), wait: num('wait', 5, 1, 60),
+    quiet: !!f.get('quiet'), qfrom: tm('qfrom', '22:00'), qto: tm('qto', '08:00'), daily: num('daily', 5, 1, 20),
+  };
+  if (phone === null) return c.html(A.smsPage(next, await smsInfo(c), undefined, 'Номер не похож на российский. Напишите, например, 8 900 596-45-77.'));
+  if (next.on && !next.phone) return c.html(A.smsPage(next, await smsInfo(c), undefined, 'Чтобы включить SMS, укажите номер телефона.'));
+  await saveSetting(c.env.DB, 'sms', next);
+  return c.redirect('/admin/sms?saved=1');
+});
+
+app.post('/admin/sms/test', async (c) => {
+  const r = await sendTest(c.env, c.get('st').sms);
+  return c.redirect(`/admin/sms?t=${r.ok ? 1 : 0}`);
+});
+
+export default {
+  fetch: app.fetch,
+  /** Раз в минуту (cron в wrangler.toml): SMS о заявках и о сообщениях в чате, на которые никто не ответил. */
+  scheduled(_event: ScheduledController, env: Bind, ctx: ExecutionContext) {
+    ctx.waitUntil(smsWatch(env).catch((e) => console.error('sms', e)));
+  },
+};

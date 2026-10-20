@@ -1,5 +1,6 @@
 import { esc, productUrl, rub, shell, SERVICE_ICONS, type Service } from './views';
-import { DAY_LONG, mskToday, ruDate, type ChatCfg, type Contacts, type Hours, type Site, type SpecialDay } from './settings';
+import { DAY_LONG, mskToday, ruDate, type ChatCfg, type Contacts, type Hours, type Site, type SmsCfg, type SpecialDay } from './settings';
+import { fmtPhone, normPhone, type SmsLogRow } from './sms';
 import { SUN_LIB, type ThemeCfg } from './theme';
 
 export interface AdminProduct {
@@ -19,6 +20,7 @@ const TABS: [string, string, string][] = [
   ['contacts', 'Контакты', '/admin/contacts'],
   ['chats', 'Чаты', '/admin/chats'],
   ['leads', 'Заявки', '/admin/leads'],
+  ['sms', 'SMS', '/admin/sms'],
   ['password', 'Пароль', '/admin/password'],
 ];
 
@@ -47,7 +49,8 @@ const ADMIN_CSS = `<style>
 .f .chk{display:flex;align-items:center;gap:0.625rem;margin:0.75rem 0}
 .f .chk input{width:1.375rem;height:1.375rem;accent-color:var(--gold);flex:none}
 .f .chk label{margin:0;font-weight:500}
-.f .row2{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;align-items:end}
+.f .row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0.75rem;align-items:end}
+@media (max-width:25rem){.f .row2{grid-template-columns:minmax(0,1fr)}}
 .hint{color:var(--muted);font-size:.88rem;margin-top:0.25rem}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:0.625rem;padding:1.125rem;margin-bottom:1.375rem}
 .abtn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:0 1rem;border-radius:0.375rem;border:1px solid var(--line);background:none;color:var(--fg);text-decoration:none;font:inherit;font-weight:600;cursor:pointer}
@@ -74,7 +77,7 @@ const ADMIN_CSS = `<style>
 .dayrow{display:grid;grid-template-columns:8.125rem auto 1fr 1fr;gap:0.625rem;align-items:center;padding:0.625rem 0;border-top:1px solid var(--line)}
 .dayrow:first-child{border-top:0}
 .dayrow .chk{margin:0}
-@media (max-width:35rem){.dayrow{grid-template-columns:1fr 1fr}.dayrow>b{grid-column:1/-1}}
+@media (max-width:35rem){.dayrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dayrow>b{grid-column:1/-1}}
 .vitem{grid-template-columns:4.5rem minmax(0,1fr) auto}
 .vextra{grid-column:1/-1;display:flex;gap:0.625rem;flex-wrap:wrap;align-items:center}
 .vextra form{margin:0}
@@ -355,6 +358,83 @@ export function chatsPage(list: ChatRow[], msgs: ChatMsg[], flash: string | unde
 <div class="chk"><input id="auto" name="auto" type="checkbox" value="1"${chat.auto ? ' checked' : ''}><label for="auto">Включить автоответы</label></div>
 <button class="abtn sm gold" type="submit">Сохранить</button></form>
 <div class="card">${rows}</div>`, flash);
+}
+
+/* ---------- SMS ---------- */
+
+export interface SmsInfo { keys: boolean; today: number; log: SmsLogRow[] }
+
+export function smsPage(s: SmsCfg, info: SmsInfo, flash?: string, error?: string): string {
+  const fmt = (t: number) => new Date((t + 3 * 3600) * 1000).toISOString().slice(0, 16).replace('T', ' ');
+  const KIND: Record<string, string> = { lead: 'Заявка', chat: 'Чат', test: 'Пробное' };
+  const phone = normPhone(s.phone);
+  const state = !s.on ? 'выключено' : !phone ? 'включено, но не указан номер' : !info.keys ? 'включено, но не добавлен доступ к сервису' : 'включено и готово';
+  const ok = s.on && !!phone && info.keys;
+  const log = info.log.length
+    ? info.log.map((r) => `<div class="lead-item"><div class="meta">${fmt(r.created_at)} (МСК) · ${KIND[r.kind] ?? esc(r.kind)} · ${r.ok ? '<span style="color:#7fd4a3">отправлено</span>' : '<span style="color:#ff9b8a">не отправлено</span>'}</div><p>${esc(r.info)}</p></div>`).join('')
+    : '<p class="hint">Пока ничего не отправлялось.</p>';
+  const chk = (id: string, on: boolean, label: string) => `<div class="chk"><input id="${id}" name="${id}" type="checkbox" value="1"${on ? ' checked' : ''}><label for="${id}">${label}</label></div>`;
+  return layout('sms', 'SMS', `
+<p class="sub">Если пропал интернет, сообщения из Telegram не придут, а SMS дойдёт и без него: хватит обычной связи. Сайт сам напишет вам короткое SMS, когда клиент оставил заявку или написал в чат и никто не ответил.</p>
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+<style>
+.f select{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:.375rem;padding:.75rem;font:inherit}
+.how summary{cursor:pointer}.how h3{font-size:1.02rem;margin:1.125rem 0 .25rem}.how ol{margin:.25rem 0 0;padding-left:1.25rem}.how li{margin:.375rem 0}.how code{font-family:var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:.25rem;padding:0 .3rem;overflow-wrap:anywhere}
+.stat{display:grid;gap:.25rem}.stat b{color:var(--gold)}
+</style>
+<div class="card stat">
+  <div>Сейчас: <b>${state}</b></div>
+  <div>Доступ к сервису: <b>${info.keys ? 'добавлен' : 'не добавлен'}</b>${info.keys ? '' : ' (как добавить, написано ниже)'}</div>
+  <div>Сегодня отправлено: <b>${info.today} из ${s.daily}</b></div>
+</div>
+<form class="card f" method="post" action="/admin/sms">
+  ${chk('on', s.on, 'Присылать SMS')}
+  <label for="phone">Номер телефона, на который писать</label>
+  <input id="phone" name="phone" type="text" inputmode="tel" autocomplete="tel" value="${esc(s.phone ? fmtPhone(s.phone) : '')}" placeholder="8 900 000-00-00">
+  <div class="hint">Российский номер. У SMS.ru бесплатные SMS идут только на тот номер, на который вы там зарегистрируетесь.</div>
+  <label for="provider">Через что отправлять</label>
+  <select id="provider" name="provider">
+    <option value="smsru"${s.provider === 'smsru' ? ' selected' : ''}>SMS.ru</option>
+    <option value="gate"${s.provider === 'gate' ? ' selected' : ''}>Запасной телефон на Android</option>
+  </select>
+  <div class="hint">SMS.ru: бесплатно на свой номер, если сервис это ещё разрешает. Запасной телефон: нужен второй телефон с SIM-картой и приложением SMS Gateway. Как подключить каждый вариант, написано ниже.</div>
+  ${chk('leads', s.leads, 'О новых заявках с сайта')}
+  ${chk('chats', s.chats, 'О сообщениях в чате, на которые никто не ответил')}
+  <label for="wait">Сколько минут ждать ответа в чате, прежде чем писать SMS</label>
+  <input id="wait" name="wait" type="number" min="1" max="60" value="${s.wait}">
+  <div class="hint">Если вы ответили в Telegram раньше, SMS не придёт. Если чат сам ответил на вопрос про график, цены, адрес или телефон, SMS тоже не нужно.</div>
+  ${chk('quiet', s.quiet, 'Не беспокоить ночью')}
+  <div class="row2">
+    <div><label for="qfrom">С</label><input id="qfrom" name="qfrom" type="time" value="${esc(s.qfrom)}"></div>
+    <div><label for="qto">До</label><input id="qto" name="qto" type="time" value="${esc(s.qto)}"></div>
+  </div>
+  <div class="hint">Ночью SMS не приходят, всё накопившееся придёт утром, когда ночь закончится. Время московское.</div>
+  <label for="daily">Не больше SMS в сутки</label>
+  <input id="daily" name="daily" type="number" min="1" max="20" value="${s.daily}">
+  <div class="hint">Защита от спама: больше сайт не отправит. У бесплатных сервисов есть и свой дневной предел.</div>
+  <p><button class="abtn gold" type="submit" style="margin-top:1.125rem">Сохранить</button></p>
+</form>
+<form class="card" method="post" action="/admin/sms/test"><b>Проверка</b>
+<p class="hint">Отправит одно пробное SMS на сохранённый номер. Нажимайте после того, как сохранили настройки${ok ? '' : ' и добавили доступ к сервису'}.</p>
+<button class="abtn sm" type="submit">Отправить пробное SMS</button></form>
+<details class="card how"${info.keys ? '' : ' open'}><summary><b>Как подключить</b></summary>
+<h3>Вариант 1. SMS.ru, без телефона-отправителя</h3>
+<ol>
+<li>Зайдите на sms.ru, нажмите «Регистрация», введите свой номер телефона и код из SMS.</li>
+<li>В личном кабинете на главной странице найдите ключ <code>api_id</code> и скопируйте его. Это секрет: никому не показывайте и не присылайте в чат.</li>
+<li>Откройте панель Cloudflare: Workers &amp; Pages, затем zolotoy-klyuchik, Settings, Variables and Secrets, кнопка Add. Тип «Secret», имя <code>SMSRU_API_ID</code>, значение — скопированный ключ. Нажмите Deploy.</li>
+<li>Вернитесь сюда: включите SMS, впишите тот же номер, нажмите «Сохранить», потом «Отправить пробное SMS».</li>
+<li>Если SMS пришло, всё готово. Если вместо этого написано «нужно создать буквенное имя отправителя» или «не хватает средств», значит, бесплатная отправка на свой номер у SMS.ru сейчас недоступна. Деньги на счёт класть не нужно, переходите ко второму варианту.</li>
+</ol>
+<h3>Вариант 2. Запасной телефон на Android</h3>
+<ol>
+<li>Нужен запасной телефон на Android с SIM-картой, который всегда включён и подключён к интернету, например дома по Wi-Fi. SMS уходят по тарифу этой SIM-карты, обычно это копейки или входит в пакет.</li>
+<li>Установите на него бесплатное приложение «SMS Gateway for Android» (сайт sms-gate.app), включите «Cloud server» и нажмите «Online». В приложении появятся логин и пароль.</li>
+<li>В Cloudflare добавьте два секрета, как в первом варианте: <code>SMSGATE_USER</code> (логин) и <code>SMSGATE_PASSWORD</code> (пароль).</li>
+<li>Здесь выберите «Запасной телефон на Android», впишите свой личный номер (не номер запасного телефона), сохраните и отправьте пробное SMS.</li>
+</ol>
+</details>
+<div class="card"><b>Последние SMS</b>${log}</div>`, flash);
 }
 
 /* ---------- услуги и цены ---------- */

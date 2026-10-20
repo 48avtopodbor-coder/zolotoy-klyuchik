@@ -1,0 +1,62 @@
+// Чистые функции src/sms.ts: номера, тексты SMS, тихие часы. Запуск: node tests/sms/unit.mjs (модуль собирается esbuild из node_modules)
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
+const root = new URL('../../', import.meta.url).pathname;
+const out = tmpdir() + '/zk-sms-unit-bundle.mjs';
+execFileSync(root + 'node_modules/.bin/esbuild', [root + 'src/sms.ts', '--bundle', '--format=esm', '--platform=neutral', '--outfile=' + out, '--log-level=error']);
+const { normPhone, fmtPhone, leadText, chatText, quietNow } = await import(pathToFileURL(out).href);
+let pass = 0, fail = 0;
+const ok = (n, c, x = '') => { c ? pass++ : fail++; console.log(c ? '  ✓' : '  ✗', n, c ? '' : x); };
+const eq = (n, a, b) => ok(n, a === b, `получили ${JSON.stringify(a)}, ждали ${JSON.stringify(b)}`);
+const len = (s) => Array.from(s).length;
+
+console.log('номера');
+eq('8 900 596-45-77', normPhone('8 900 596-45-77'), '79005964577');
+eq('+7 (900) 596-45-77', normPhone('+7 (900) 596-45-77'), '79005964577');
+eq('900 596 45 77', normPhone('900 596 45 77'), '79005964577');
+eq('7 900 596 45 77', normPhone('7 900 596 45 77'), '79005964577');
+eq('короткий номер', normPhone('123'), null);
+eq('украинский номер', normPhone('+380501234567'), null);
+eq('пустая строка', normPhone(''), null);
+eq('показ номера', fmtPhone('79005964577'), '+7 900 596-45-77');
+eq('показ не номера', fmtPhone('abc'), 'abc');
+
+console.log('текст заявки');
+eq('обычная', leadText({ name: 'Иван', phone: '8 900 111-22-33', message: 'нужен дубликат ключа от домофона' }), 'Заявка: Иван 89001112233 нужен дубликат ключа от домофона');
+const long = leadText({ name: 'Иван', phone: '8 900 111-22-33', message: 'очень длинное сообщение '.repeat(20) });
+ok('длинная укорочена до 70 знаков', len(long) === 70 && long.endsWith('…'), `${len(long)}: ${long}`);
+eq('без сообщения', leadText({ name: 'Иван', phone: '8 900 111-22-33', message: '' }), 'Заявка: Иван 89001112233');
+const ln = leadText({ name: 'Александра-Виктория Константиновна', phone: '+7 900 111-22-33', message: '' });
+ok('длинное имя укорочено', ln === 'Заявка: Александра-Викто… +79001112233' || len(ln) <= 70, ln);
+console.log('  ', ln);
+ok('перевод строки в сообщении заменён пробелом', !/\n/.test(leadText({ name: 'А', phone: '89001112233', message: 'а\nб\n\nв' })));
+
+console.log('текст чата');
+eq('короткий', chatText({ phone: '', text: 'Здравствуйте' }), 'В чате: Здравствуйте');
+const c1 = chatText({ phone: '8 900 222-33-44', text: 'Здравствуйте, можно сделать дубликат ключа Mul-T-Lock?' });
+ok('с номером: не длиннее 70 и номер в конце', len(c1) <= 70 && c1.endsWith(' 89002223344') && c1.includes('…'), `${len(c1)}: ${c1}`);
+console.log('  ', c1);
+eq('только фото', chatText({ phone: '', text: '' }), 'В чате: фото');
+
+console.log('тихие часы (МСК)');
+const msk = (h, m) => Date.UTC(2026, 9, 20, h - 3, m);
+const night = { quiet: true, qfrom: '22:00', qto: '08:00' };
+const q = (cfg, h, m) => quietNow({ ...cfg }, msk(h, m));
+eq('21:59 не ночь', q(night, 21, 59), false);
+eq('22:00 ночь', q(night, 22, 0), true);
+eq('23:59 ночь', q(night, 23, 59), true);
+eq('00:00 ночь', q(night, 0, 0), true);
+eq('07:59 ночь', q(night, 7, 59), true);
+eq('08:00 не ночь', q(night, 8, 0), false);
+eq('12:00 не ночь', q(night, 12, 0), false);
+const day = { quiet: true, qfrom: '13:00', qto: '14:00' };
+eq('12:59 перед перерывом', q(day, 12, 59), false);
+eq('13:00 перерыв', q(day, 13, 0), true);
+eq('13:59 перерыв', q(day, 13, 59), true);
+eq('14:00 после', q(day, 14, 0), false);
+eq('одинаковые границы: не действует', q({ quiet: true, qfrom: '10:00', qto: '10:00' }, 10, 0), false);
+eq('выключено', q({ quiet: false, qfrom: '22:00', qto: '08:00' }, 23, 0), false);
+eq('кривое время: не действует', q({ quiet: true, qfrom: 'zz', qto: '08:00' }, 23, 0), false);
+console.log(`\nИтого: ${pass} прошло, ${fail} не прошло`);
+process.exit(fail ? 1 : 0);

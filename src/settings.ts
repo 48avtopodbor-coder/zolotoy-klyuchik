@@ -13,7 +13,22 @@ export interface Site {
 }
 /** Автоответы чата: отвечают на частые вопросы (график, адрес, цены, телефон) и сообщают время открытия. */
 export interface ChatCfg { auto: boolean }
-export interface Settings { hours: Hours; contacts: Contacts; site: Site; chat: ChatCfg; pw: string | null; ver: number }
+/** SMS мастеру на случай, когда Telegram не доходит (нет интернета): о заявках и о сообщениях в чате, на которые никто не ответил. */
+export interface SmsCfg {
+  on: boolean;
+  provider: 'smsru' | 'gate';
+  phone: string;
+  leads: boolean;
+  chats: boolean;
+  /** Сколько минут ждать ответа в чате, прежде чем писать SMS. */
+  wait: number;
+  quiet: boolean;
+  qfrom: string;
+  qto: string;
+  /** Не больше стольких SMS в сутки (по Москве). */
+  daily: number;
+}
+export interface Settings { hours: Hours; contacts: Contacts; site: Site; chat: ChatCfg; sms: SmsCfg; pw: string | null; ver: number }
 
 export const DAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const DAY_LONG = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -33,6 +48,7 @@ export const DEFAULT_SITE: Site = {
   theme: { mode: 'sun', from: '07:00', to: '19:00' },
 };
 export const DEFAULT_CHAT: ChatCfg = { auto: true };
+export const DEFAULT_SMS: SmsCfg = { on: false, provider: 'smsru', phone: '', leads: true, chats: true, wait: 5, quiet: true, qfrom: '22:00', qto: '08:00', daily: 5 };
 export const DEFAULT_CONTACTS: Contacts = {
   phones: ['8 900 596-45-77'],
   whatsapp: '',
@@ -51,6 +67,7 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
     contacts: parse('contacts', DEFAULT_CONTACTS),
     site: parse('site', DEFAULT_SITE),
     chat: parse('chat', DEFAULT_CHAT),
+    sms: parse('sms', DEFAULT_SMS),
     pw: m.get('admin_pw') ?? null,
     ver: Number(m.get('session_ver') ?? 0),
   };
