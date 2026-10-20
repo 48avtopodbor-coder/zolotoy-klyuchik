@@ -79,7 +79,19 @@ const ADMIN_CSS = `<style>
 .vextra{grid-column:1/-1;display:flex;gap:0.625rem;flex-wrap:wrap;align-items:center}
 .vextra form{margin:0}
 .vcover{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center}
-.vcover input[type=file]{max-width:14.375rem;font-size:.85rem}
+.vextra form.vcover{flex:1 1 100%;min-width:0;max-width:100%}
+.vcover input[type=file]{flex:1 1 100%;width:100%;min-width:0;max-width:100%}
+/* выбор файлов: большая кнопка и широкая область нажатия, чтобы было удобно пальцем */
+input[type=file]{display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px dashed var(--line);border-radius:0.625rem;background:var(--bg);color:var(--muted);font:inherit;cursor:pointer}
+input[type=file]::file-selector-button{min-height:3.25rem;margin:0 0.9rem 0 0;padding:0 1.35rem;border:1px solid var(--gold);border-radius:0.5rem;background:rgba(226,180,79,.14);color:var(--gold);font:700 1.05rem var(--body);cursor:pointer}
+input[type=file]::-webkit-file-upload-button{min-height:3.25rem;margin:0 0.9rem 0 0;padding:0 1.35rem;border:1px solid var(--gold);border-radius:0.5rem;background:rgba(226,180,79,.14);color:var(--gold);font:700 1.05rem var(--body);cursor:pointer}
+input[type=file]:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+@media (max-width:47.5rem){
+  input[type=file]{padding:0.875rem}
+  input[type=file]::file-selector-button{min-height:3.5rem;padding:0 1.5rem;font-size:1.125rem}
+  input[type=file]::-webkit-file-upload-button{min-height:3.5rem;padding:0 1.5rem;font-size:1.125rem}
+}
+@media (hover:hover){input[type=file]:hover::file-selector-button{background:rgba(226,180,79,.26)}}
 .lead-item{border-top:1px solid var(--line);padding:0.875rem 0}.lead-item:first-child{border-top:0}
 .lead-item .meta{color:var(--muted);font-size:.85rem}
 .lead-item p{margin:0.375rem 0 0;overflow-wrap:anywhere}
@@ -185,7 +197,7 @@ export function productFormPage(p?: AdminProduct): string {
   <div class="chk"><input id="is_sale" name="is_sale" type="checkbox" value="1"${p?.is_sale ? ' checked' : ''}><label for="is_sale">Акция</label></div>
   <div class="hint" style="margin-top:-6px">Для акции на карточке будет метка, старая цена зачёркнута, а сам товар встанет в начало списка.</div>
   <div class="chk"><input id="in_stock" name="in_stock" type="checkbox" value="1"${!p || p.in_stock ? ' checked' : ''}><label for="in_stock">Есть в наличии</label></div>
-  <label>Фото (до 6)</label>
+  <label for="images">Фото (до 6)</label>
   ${photos}
   <input id="images" name="images" type="file" accept="image/*" multiple>
   <div data-prev="images"></div>
