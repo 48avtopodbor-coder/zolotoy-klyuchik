@@ -239,6 +239,13 @@ button.cw-link{background:none;border:0;padding:0;font:inherit;text-align:left;t
 
 @media (max-width:35rem){.btns .btn.gold,.btns .split{width:100%}.btns .btn.gold{justify-content:center}.split .label{flex:1;justify-content:center;padding:0 1rem}}
 
+/* кнопки связи одной ширины: в ряд, когда на каждую хватает места, иначе по одной в строке на всю ширину (старые браузеры без @container получают столбик) */
+.hero .btns{display:grid;grid-template-columns:repeat(3,minmax(0,15rem));gap:.625rem;container-type:inline-size}
+.hero .btns>.btn,.hero .btns>.split{grid-column:1/-1;width:auto;min-width:0;justify-content:center}
+.hero .btns>.btn{padding-inline:1rem}
+.split .label{flex:1;justify-content:center;padding:0 .9rem;white-space:nowrap}
+@container (min-width:33rem){.hero .btns>.btn,.hero .btns>.split{grid-column:auto}}
+
 /* чертёж ключа: линии, размеры, штамп (размеры шрифта заданы в единицах рисунка) */
 .kd .o{fill:none;stroke:var(--gold-t);stroke-width:2.2;stroke-linejoin:round}
 .kd .g{fill:none;stroke:var(--gold-t);stroke-width:1.4;stroke-dasharray:2 5;opacity:.6}
