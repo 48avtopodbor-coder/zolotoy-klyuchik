@@ -38,6 +38,12 @@ npx wrangler deploy
 ```
 Потом коммит и пуш в `main`.
 
+## Резервная копия
+- Владелец просил копию «на флешку и для переезда на другой хостинг». Сборка: `python3 tools/make-backup.py /tmp/zolotoy-backup` (переменные Cloudflare как в «Выкладке»). Получается один ZIP: `kod-sayta/` (последний коммит), `istoriya-izmeneniy.bundle` (вся история git), `baza/struktura.sql` и `baza/dannye.sql`, `foto/` обычными файлами, `README.txt` с инструкцией восстановления для владельца. Отправить владельцу через `SendUserFile`; в git и в чат не класть, в базе телефоны клиентов
+- Фото в базе лежат как base64 до 1,3 МБ, а D1 принимает одну SQL-команду не длиннее примерно 100 КБ: скрипт режет фото на куски по 50 КБ (`INSERT` с пустым `data`, потом `UPDATE ... data = data || кусок`). В копию не входят чаты, `sms_log`, хеш пароля `admin_pw` и `session_ver`. Пароли и ключи лежат только в Cloudflare
+- Как проверялось (21.10.2026): `wrangler d1 create` временной базы, `d1 execute --remote --file` двух файлов, сверка всех таблиц и фото с рабочей базой, `d1 delete`; затем распаковка ZIP в пустую папку, `npm ci`, `d1 execute --local`, запуск сайта и сравнение страниц и `/img/*` с живым сайтом. Для wrangler нужен Node.js 22 или новее
+- Обновлять копию после заметных правок содержимого (товары, фото, услуги, настройки в админке) и раз в месяц, когда владелец попросит
+
 ## Как проверять
 - Локально: `npx wrangler d1 migrations apply DB --local`, `npx wrangler dev --port 88xx --local`, вход с паролем из `.dev.vars`
 - Браузер: Playwright-core с Chromium из `/opt/pw-browsers`; время подменяется через `page.clock.install({time})`
