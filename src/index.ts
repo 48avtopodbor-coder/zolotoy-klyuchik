@@ -150,6 +150,14 @@ app.get('/img/:key', async (c) => {
 });
 
 app.get('/robots.txt', (c) => c.text(`User-agent: *\nDisallow: /admin\nDisallow: /api/\nSitemap: ${new URL(c.req.url).origin}/sitemap.xml\n`));
+// файлы подтверждения прав на сайт для Яндекс Вебмастера (позже и для Google Search Console): адрес и точное содержимое.
+// Не удалять: поисковик периодически перепроверяет, что файл на месте
+const VERIFY_FILES: Record<string, string> = {
+  '/yandex_0b7bf46754da4b0b.html': '<html>\n    <head>\n        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">\n    </head>\n    <body>Verification: 0b7bf46754da4b0b</body>\n</html>\n',
+};
+for (const [path, body] of Object.entries(VERIFY_FILES)) {
+  app.get(path, () => new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } }));
+}
 // значок сайта: золотой ключ на тёмной плитке (один и тот же файл для /favicon.svg и /favicon.ico)
 const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0f2233"/><rect x="2" y="2" width="60" height="60" rx="10" fill="none" stroke="#2b5276" stroke-width="2"/><g transform="rotate(-45 32 32)" fill="none" stroke="#e2b44f" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="32" r="9.5"/><circle cx="14" cy="32" r="2.4" fill="#e2b44f" stroke="none"/><path d="M23.5 32H56M46 32v9.5M54 32v6.5"/></g></svg>';
 const favicon = () => new Response(FAVICON, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } });
