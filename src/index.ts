@@ -154,6 +154,7 @@ app.get('/robots.txt', (c) => c.text(`User-agent: *\nDisallow: /admin\nDisallow:
 // Не удалять: поисковик периодически перепроверяет, что файл на месте
 const VERIFY_FILES: Record<string, string> = {
   '/yandex_0b7bf46754da4b0b.html': '<html>\n    <head>\n        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">\n    </head>\n    <body>Verification: 0b7bf46754da4b0b</body>\n</html>\n',
+  '/google35d228682924d8ed.html': 'google-site-verification: google35d228682924d8ed.html',
 };
 for (const [path, body] of Object.entries(VERIFY_FILES)) {
   app.get(path, () => new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } }));
